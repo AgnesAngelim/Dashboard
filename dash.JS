@@ -222,12 +222,10 @@ function calcularDados(relatorio, backoffice) {
   const labelsTimeline = todosMeses.map(m => formatarMesLabel(m));
   const ativacoesArr   = todosMeses.map(m => ativacoesPorMes[m] || 0);
   const cancelamentosArr = todosMeses.map(m => cancelamentosPorMes[m] || 0);
-  let baseAtiva = 0;
-  const churnArr = todosMeses.map(m => {
-    baseAtiva += (ativacoesPorMes[m] || 0) - (cancelamentosPorMes[m] || 0);
-    const canc = cancelamentosPorMes[m] || 0;
-    return baseAtiva > 0 ? parseFloat(((canc / baseAtiva) * 100).toFixed(1)) : 0;
-  });
+const churnArr = todosMeses.map(m => {
+  const canc = cancelamentosPorMes[m] || 0;
+  return ativos > 0 ? parseFloat(((canc / ativos) * 100).toFixed(1)) : 0;
+});
 
   let somaVida = 0, countVida = 0;
   relatorio.forEach(r => {
@@ -247,8 +245,12 @@ function calcularDados(relatorio, backoffice) {
   const kpi = {
     ativacoes:     { atual: ativacoesPorMes[ultMes] || 0,     anterior: ativacoesPorMes[penMes] || 0 },
     cancelamentos: { atual: cancelamentosPorMes[ultMes] || 0, anterior: cancelamentosPorMes[penMes] || 0 },
-    mesAtual: formatarMesLabel(ultMes || ""), mesAnterior: formatarMesLabel(penMes || ""),
-  };
+    churn: {
+    atual:    ativos > 0 ? parseFloat(((cancelamentosPorMes[ultMes] || 0) / ativos * 100).toFixed(2)) : 0,
+    anterior: ativos > 0 ? parseFloat(((cancelamentosPorMes[penMes] || 0) / ativos * 100).toFixed(2)) : 0,
+  },
+  mesAtual: formatarMesLabel(ultMes || ""), mesAnterior: formatarMesLabel(penMes || ""),
+};
 
   const contagemEstados = {};
   relatorio.forEach(r => {
@@ -505,6 +507,13 @@ function preencherKPI(d) {
   set("kpi-canc-atual", fmt(k.cancelamentos.atual)); set("kpi-canc-ant", fmt(k.cancelamentos.anterior));
   const elVarCanc = document.getElementById("kpi-canc-var");
   if (elVarCanc) { elVarCanc.textContent = varCanc.texto; elVarCanc.className = "kpi-var " + varCanc.classe; }
+  // Churn
+  set("kpi-mes-churn", k.mesAtual);
+  set("kpi-churn-atual", k.churn.atual + "%");
+  set("kpi-churn-ant",   k.churn.anterior + "%");
+  const varChurn = variacaoInversa(k.churn.atual, k.churn.anterior);
+  const elVarChurn = document.getElementById("kpi-churn-var");
+  if (elVarChurn) { elVarChurn.textContent = varChurn.texto; elVarChurn.className = "kpi-var " + varChurn.classe; }
 }
 
 function renderizarPlanos(d) {
