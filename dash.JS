@@ -129,7 +129,6 @@ function tentarProcessar() {
   const dados = calcularDados(arquivoPrincipal, arquivoBackoffice);
   dadosGlobais = dados;
   renderDash(dados);
-  construirFiltroMeses(dados);
   construirFiltroGlobal(dados);
 
   document.getElementById("uploadArea").style.display = "none";
@@ -545,54 +544,32 @@ function renderizarGraficos(d) {
   const topOp = Object.entries(d.operadoras).sort((a,b)=>b[1]-a[1]).slice(0,6);
   chartOperadoras = new Chart(document.getElementById("chartOperadoras"),{type:"bar",data:{labels:topOp.map(([n])=>n),datasets:[{data:topOp.map(([,q])=>q),backgroundColor:["#10B981","#06B6D4","#F59E0B","#8B5CF6","#EC4899","#F97316"],borderRadius:4,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:tickColor,font:{size:11}},grid:{display:false}},y:{ticks:{color:tickColor,font:{size:11}},grid:{color:gridColor},beginAtZero:true}}}});
 
-  chartTimeline = new Chart(document.getElementById("chartTimeline"),{type:"line",data:{labels:d.timeline.labels,datasets:[
-    {label:"Ativações",data:d.timeline.ativacoes,borderColor:"#10B981",backgroundColor:"#10b9811a",fill:true,tension:0.3,pointRadius:3},
-    {label:"Cancelamentos",data:d.timeline.cancelamentos,borderColor:"#EF4444",backgroundColor:"#ef44441a",fill:true,tension:0.3,pointRadius:3},
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{
-    x:{ticks:{color:tickColor,font:{size:11}},grid:{color:gridColor}},
-    y:{ticks:{color:tickColor,font:{size:11}},grid:{color:gridColor},beginAtZero:true},
-  }}});
+const mesSel = dadosGlobais?._mesSelecionado;
+let tlLabels, tlAtiv, tlCanc;
+if (mesSel && mesSel !== "todos" && d.timeline.ativacoesPorDia[mesSel]) {
+  const [ano, mes] = mesSel.split("-").map(Number);
+  const diasNoMes  = new Date(ano, mes, 0).getDate();
+  const diasAtiv   = d.timeline.ativacoesPorDia[mesSel] || {};
+  const diasCanc   = d.timeline.cancelamentosPorDia[mesSel] || {};
+  tlLabels = Array.from({length:diasNoMes}, (_,i) => String(i+1));
+  tlAtiv   = Array.from({length:diasNoMes}, (_,i) => diasAtiv[i+1] || 0);
+  tlCanc   = Array.from({length:diasNoMes}, (_,i) => diasCanc[i+1] || 0);
+} else {
+  tlLabels = d.timeline.labels;
+  tlAtiv   = d.timeline.ativacoes;
+  tlCanc   = d.timeline.cancelamentos;
 }
-
-function construirFiltroMeses(d) {
-  const container = document.getElementById("filtroMeses");
-  container.innerHTML = "";
-  const btnTodos = document.createElement("button");
-  btnTodos.textContent = "Todos"; btnTodos.className = "filtro-btn active"; btnTodos.dataset.mes = "todos";
-  btnTodos.addEventListener("click", () => aplicarFiltro("todos"));
-  container.appendChild(btnTodos);
-  d.timeline.todosMeses.forEach((mes, i) => {
-    const btn = document.createElement("button");
-    btn.textContent = d.timeline.labels[i]; btn.className = "filtro-btn"; btn.dataset.mes = mes;
-    btn.addEventListener("click", () => aplicarFiltro(mes));
-    container.appendChild(btn);
-  });
-  aplicarFiltro("todos");
-}
-
-function aplicarFiltro(mesSelecionado) {
-  document.querySelectorAll(".filtro-btn").forEach(b => b.classList.toggle("active", b.dataset.mes === mesSelecionado));
-  const d = dadosGlobais.timeline;
-  let labels, ativacoes, cancelamentos;
-  if (mesSelecionado === "todos") {
-    labels = d.labels; ativacoes = d.ativacoes; cancelamentos = d.cancelamentos || [];
-  } else {
-    const [ano, mes] = mesSelecionado.split("-").map(Number);
-    const diasNoMes = new Date(ano, mes, 0).getDate();
-    const diasAtiv  = d.ativacoesPorDia[mesSelecionado] || {};
-    const diasCanc  = d.cancelamentosPorDia[mesSelecionado] || {};
-    labels        = Array.from({length:diasNoMes},(_,i)=>String(i+1));
-    ativacoes     = Array.from({length:diasNoMes},(_,i)=>diasAtiv[i+1]||0);
-    cancelamentos = Array.from({length:diasNoMes},(_,i)=>diasCanc[i+1]||0);
-  }
-  chartTimeline.data.labels=labels;
-  chartTimeline.data.datasets[0].data=ativacoes;
-  chartTimeline.data.datasets[1].data=cancelamentos;
-  chartTimeline.update();
-  const totalAtv  = ativacoes.reduce((a,b)=>a+b,0);
-  const totalCanc = cancelamentos.reduce((a,b)=>a+b,0);
-  set("legend-atv-total",  fmt(totalAtv));
-  set("legend-canc-total", fmt(totalCanc));
+const totalAtv  = tlAtiv.reduce((a,b)=>a+b,0);
+const totalCanc = tlCanc.reduce((a,b)=>a+b,0);
+set("legend-atv-total",  fmt(totalAtv));
+set("legend-canc-total", fmt(totalCanc));
+chartTimeline = new Chart(document.getElementById("chartTimeline"),{type:"line",data:{labels:tlLabels,datasets:[
+  {label:"Ativações",data:tlAtiv,borderColor:"#10B981",backgroundColor:"#10b9811a",fill:true,tension:0.3,pointRadius:3},
+  {label:"Cancelamentos",data:tlCanc,borderColor:"#EF4444",backgroundColor:"#ef44441a",fill:true,tension:0.3,pointRadius:3},
+]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{
+  x:{ticks:{color:tickColor,font:{size:11}},grid:{color:gridColor}},
+  y:{ticks:{color:tickColor,font:{size:11}},grid:{color:gridColor},beginAtZero:true},
+}}});
 }
 
 // ── Filtro global ─────────────────────────────────────────────────────────────
@@ -627,10 +604,13 @@ function construirFiltroGlobal(d) {
     document.querySelectorAll("#filtroGlobal .filtro-btn").forEach(b => b.classList.remove("active"));
     document.getElementById("btnAplicarPeriodo").classList.add("active");
     const dadosFiltrados = calcularDados(relFiltrado, arquivoBackoffice);
-    dadosFiltrados.kpi.mesAtual = `${inicio.split("-").reverse().slice(0,2).join("/")} → ${fim.split("-").reverse().slice(0,2).join("/")}`;
-    dadosGlobais = dadosFiltrados;
+   dadosFiltrados._mesSelecionado = "todos";
+  if (mesSelecionado !== "todos") {
+    dadosFiltrados.kpi.ativacoes.atual     = dadosFiltrados.timeline.ativacoesPorMes[mesSelecionado] || 0;
+    dadosFiltrados.kpi.cancelamentos.atual = dadosFiltrados.timeline.cancelamentosPorMes[mesSelecionado] || 0;
+    dadosFiltrados.kpi.mesAtual            = formatarMesLabel(mesSelecionado);
+  }
     renderDash(dadosFiltrados);
-    construirFiltroMeses(dadosFiltrados);
     setTimeout(() => renderizarMapa(dadosFiltrados), 100);
     document.getElementById("filtroGlobal").style.display = "none";
   });
@@ -661,13 +641,19 @@ function construirFiltroGlobal(d) {
 
 function aplicarFiltroGlobal(mesSelecionado, d) {
   document.querySelectorAll("#filtroGlobal .filtro-btn").forEach(b => b.classList.toggle("active", b.dataset.mes === mesSelecionado));
+  
   const relFiltrado = mesSelecionado === "todos"
     ? arquivoPrincipal
     : arquivoPrincipal.filter(r => {
-        const dataAtiv = parseDateBR(r["Data de ativação"]);
-        return dataAtiv && mesLabel(dataAtiv) === mesSelecionado;
+        const dataAtiv  = parseDateBR(r["Data de ativação"]);
+        const dataCanc  = parseDateBR(r["Data cancelado"]);
+        const mesAtiv   = dataAtiv  ? mesLabel(dataAtiv)  : null;
+        const mesCanc   = dataCanc  ? mesLabel(dataCanc)  : null;
+        return mesAtiv === mesSelecionado || mesCanc === mesSelecionado;
       });
+
   const dadosFiltrados = calcularDados(relFiltrado, arquivoBackoffice);
+  dadosFiltrados._mesSelecionado = mesSelecionado;
   if (mesSelecionado !== "todos") {
     dadosFiltrados.kpi.ativacoes.atual     = dadosFiltrados.timeline.ativacoesPorMes[mesSelecionado] || 0;
     dadosFiltrados.kpi.cancelamentos.atual = dadosFiltrados.timeline.cancelamentosPorMes[mesSelecionado] || 0;
@@ -675,7 +661,6 @@ function aplicarFiltroGlobal(mesSelecionado, d) {
   }
   dadosGlobais = dadosFiltrados;
   renderDash(dadosFiltrados);
-  construirFiltroMeses(dadosFiltrados);
   setTimeout(() => renderizarMapa(dadosFiltrados), 100);
 }
 
