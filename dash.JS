@@ -5,7 +5,7 @@ const pct = (parte, total) => total ? ((parte / total) * 100).toFixed(1) + "%" :
 const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
 const fmt = (n) => Number(n).toLocaleString("pt-BR");
 
-let chartPort = null, chartNova = null, chartTimeline = null;
+let chartPort = null, chartNova = null, chartPortGeral = null, chartTimeline = null;
 let chartChip = null, chartPgto = null, chartRecorrencia = null, chartOperadoras = null;
 let dadosGlobais = null;
 let labels, ativacoes, cancelamentos, churn;
@@ -75,15 +75,11 @@ function configurarZone(zoneId, inputId, statusId, handler) {
   });
 }
 
-// ── CORREÇÃO PRINCIPAL: lerExcel agora passa cellDates:false para receber
-//    números seriais brutos, que parseDateBR converte corretamente em UTC ──────
 function lerExcel(file, callback) {
   const reader = new FileReader();
   reader.onload = (e) => {
     setTimeout(() => {
       try {
-        // cellDates:false → datas chegam como número serial do Excel
-        // raw:true        → garante que os valores não sejam formatados como string
         callback(XLSX.read(e.target.result, { type: "array", dense: true, cellDates: false, raw: true }));
       } catch (err) {
         const el = document.getElementById("uploadStatus");
@@ -99,7 +95,6 @@ function processarPrincipal(file, statusId, zone) {
   badge.textContent = "⏳ Lendo..."; badge.className = "upload-badge loading";
   lerExcel(file, (wb) => {
     const aba = wb.SheetNames[0];
-    // defval:null garante que colunas ausentes virem null e não undefined
     const dados = XLSX.utils.sheet_to_json(wb.Sheets[aba], { defval: null });
     if (!dados.length) { badge.textContent = "❌ Planilha vazia"; badge.className = "upload-badge erro"; return; }
     arquivoPrincipal = dados;
@@ -114,7 +109,6 @@ function processarBackoffice(file, statusId, zone) {
   badge.textContent = "⏳ Lendo..."; badge.className = "upload-badge loading";
   lerExcel(file, (wb) => {
     const abaBO = wb.SheetNames.find(n => n.toLowerCase().replace(/\s/g,"").includes("backoffice")) || wb.SheetNames[0];
-    // raw:false no backoffice para que os chips venham como string formatada
     const bo = XLSX.utils.sheet_to_json(wb.Sheets[abaBO], { raw: false, defval: null });
     arquivoBackoffice = new Set(
       bo.map(r => String(r["Chip"] || "").trim().split(".")[0]).filter(v => v !== "")
@@ -136,6 +130,7 @@ function tentarProcessar() {
   dadosGlobais = dados;
   renderDash(dados);
   construirFiltroMeses(dados);
+  construirFiltroGlobal(dados);
 
   document.getElementById("uploadArea").style.display = "none";
   document.getElementById("page-geral").style.display = "block";
@@ -153,14 +148,17 @@ function calcularDados(relatorio, backoffice) {
   const ativos     = relatorio.filter(isAtivo).length;
   const cancelados = relatorio.filter(isCancelado).length;
 
-  const portRows   = relatorio.filter(r => ["True","Verdadeiro","true","verdadeiro"].includes(String(r["Portabilidades"] || "").trim()));
-  const novaRows   = relatorio.filter(r => !["True","Verdadeiro","true","verdadeiro"].includes(String(r["Portabilidades"] || "").trim()));
-  const portAtivos = portRows.filter(isAtivo).length;
-  const portCancel = portRows.filter(isCancelado).length;
-  const novaAtivos = novaRows.filter(isAtivo).length;
-  const novaCancel = novaRows.filter(isCancelado).length;
+  const portRows       = relatorio.filter(r => ["True","Verdadeiro","true","verdadeiro"].includes(String(r["Portabilidades"] || "").trim()));
+  const novaRows       = relatorio.filter(r => !["True","Verdadeiro","true","verdadeiro"].includes(String(r["Portabilidades"] || "").trim()));
+  const portAtivos     = portRows.filter(isAtivo).length;
+  const portCancel     = portRows.filter(isCancelado).length;
+  const portAtivosRows = portRows.filter(isAtivo);
+  const portAprovadas  = portAtivosRows.filter(r => String(r["Portabilidade"] || "").toUpperCase().includes("SUCESSO")).length;
+  const portNegadas    = portAtivosRows.filter(r => String(r["Portabilidade"] || "").toLowerCase().includes("negada")).length;
+  const portAndamento  = portAtivosRows.length - portAprovadas - portNegadas;
+  const novaAtivos     = novaRows.filter(isAtivo).length;
+  const novaCancel     = novaRows.filter(isCancelado).length;
 
-  // ── CORREÇÃO: normalize NFD para remover acentos antes de comparar ──────────
   const normalizar = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
 
   const esimRows   = relatorio.filter(r => normalizar(r["Tipo de chip"]) === "esim");
@@ -169,16 +167,14 @@ function calcularDados(relatorio, backoffice) {
   const bonifTotal  = relatorio.filter(r => String(r["Tipo"] || "").trim().toUpperCase() === "BONIFICADA").length;
   const bonifNormal = relatorio.filter(r => String(r["Tipo"] || "").trim().toUpperCase() === "NORMAL").length;
 
-  // Logística: registros onde a coluna "Logistica" tem valor preenchido (não vazio/null)
- const logisticaTotal = relatorio.filter(r => {
-  const v = String(r["Logistica"] || r["Logística"] || "").trim();
-  return v !== "" && v !== "null" && v !== "-" && v !== "N/D" && v !== "0";
-}).length;
+  const logisticaTotal = relatorio.filter(r => {
+    const v = String(r["Logistica"] || r["Logística"] || "").trim();
+    return v !== "" && v !== "null" && v !== "-" && v !== "N/D" && v !== "0";
+  }).length;
 
-  // ── CORREÇÃO: normalizar forma de pagamento antes de excluir ────────────────
-  const excluirPgtoNorm = ["baixa manual", "pagamento com saldo", "-", "bonificacao"];
+  const excluirPgtoNorm = ["baixa manual", "pagamento com saldo", "-"];
   const contagemPgto = {};
-  relatorio.forEach(r => {
+  relatorio.filter(isAtivo).forEach(r => {
     const pgtoRaw = r["Forma de pagamento"];
     if (!pgtoRaw || String(pgtoRaw).trim() === "") return;
     const pgtoNorm = normalizar(pgtoRaw);
@@ -188,15 +184,18 @@ function calcularDados(relatorio, backoffice) {
   });
   const totalPgto = Object.values(contagemPgto).reduce((a, b) => a + b, 0);
 
-  // ── CORREÇÃO: cartão com ou sem acento ──────────────────────────────────────
-  const comRecorrencia = relatorio.filter(r => normalizar(r["Forma de pagamento"]).includes("cartao")).length;
-  const semRecorrencia = total - comRecorrencia;
+  const ativosTotal = relatorio.filter(isAtivo);
+  const comRecorrencia = ativosTotal.filter(r => {
+    const v = String(r["Recorrência"] || "");
+    return v === "Cartão de crédito | recorrência cartão" || v === "Criptomoeda | recorrência cartão";
+  }).length;
+  const semRecorrencia = ativosTotal.length - comRecorrencia;
 
   const contagemOp = {};
   relatorio.forEach(r => { const op = r["Operadora"]; if (op) contagemOp[op] = (contagemOp[op] || 0) + 1; });
 
   const contagemPlanos = {};
-  relatorio.forEach(r => { const p = r["Plano"]; if (p) contagemPlanos[p] = (contagemPlanos[p] || 0) + 1; });
+  relatorio.filter(isAtivo).forEach(r => { const p = r["Plano"]; if (p) contagemPlanos[p] = (contagemPlanos[p] || 0) + 1; });
   const planos = Object.entries(contagemPlanos).map(([nome, qtd]) => ({ nome, total: qtd }));
 
   const ativacoesPorMes = {}, cancelamentosPorMes = {}, ativacoesPorDia = {}, cancelamentosPorDia = {};
@@ -219,24 +218,23 @@ function calcularDados(relatorio, backoffice) {
     }
   });
 
-  // ── CORREÇÃO: ordenação de meses agora é cronológica garantida ───────────────
   const todosMeses     = Array.from(new Set([...Object.keys(ativacoesPorMes), ...Object.keys(cancelamentosPorMes)])).sort();
   const labelsTimeline = todosMeses.map(m => formatarMesLabel(m));
   const ativacoesArr   = todosMeses.map(m => ativacoesPorMes[m] || 0);
   const cancelamentosArr = todosMeses.map(m => cancelamentosPorMes[m] || 0);
+  let baseAtiva = 0;
   const churnArr = todosMeses.map(m => {
-    const atv = ativacoesPorMes[m] || 0, canc = cancelamentosPorMes[m] || 0;
-    return atv > 0 ? parseFloat(((canc / atv) * 100).toFixed(1)) : 0;
+    baseAtiva += (ativacoesPorMes[m] || 0) - (cancelamentosPorMes[m] || 0);
+    const canc = cancelamentosPorMes[m] || 0;
+    return baseAtiva > 0 ? parseFloat(((canc / baseAtiva) * 100).toFixed(1)) : 0;
   });
 
-  // ── Tempo médio de vida ───────────────────────────────────────────────────────
   let somaVida = 0, countVida = 0;
   relatorio.forEach(r => {
     if (isCancelado(r)) {
       const dataAtiv = parseDateBR(r["Data de ativação"]);
       const dataCanc = parseDateBR(r["Data cancelado"]);
       if (dataAtiv && dataCanc) {
-        // usar getTime() para ambos; ambos são em UTC por parseDateBR
         const dias = Math.round((dataCanc.getTime() - dataAtiv.getTime()) / (1000 * 60 * 60 * 24));
         if (dias >= 0) { somaVida += dias; countVida++; }
       }
@@ -249,7 +247,6 @@ function calcularDados(relatorio, backoffice) {
   const kpi = {
     ativacoes:     { atual: ativacoesPorMes[ultMes] || 0,     anterior: ativacoesPorMes[penMes] || 0 },
     cancelamentos: { atual: cancelamentosPorMes[ultMes] || 0, anterior: cancelamentosPorMes[penMes] || 0 },
-    churn:         { atual: churnArr[todosMeses.length - 1] || 0, anterior: churnArr[todosMeses.length - 2] || 0 },
     mesAtual: formatarMesLabel(ultMes || ""), mesAnterior: formatarMesLabel(penMes || ""),
   };
 
@@ -259,10 +256,8 @@ function calcularDados(relatorio, backoffice) {
     if (uf) contagemEstados[uf] = (contagemEstados[uf] || 0) + 1;
   });
 
-  // ── Dashboard de Clientes (usa backoffice para filtrar duplicatas) ────────────
   const ativacoesPorDoc = {}, numTelCount = {}, telDocMap = {}, dadosPorDoc = {}, statusPortMap = {}, operadoraStats = {};
 
-  // ── CORREÇÃO: filtrar pela planilha de backoffice (chips únicos) ─────────────
   const relatorioClientes = backoffice && backoffice.size > 0
     ? relatorio.filter(r => {
         const chip = String(r["Chip"] || r["Numero"] || "").trim().split(".")[0];
@@ -342,7 +337,6 @@ function calcularDados(relatorio, backoffice) {
 
   const operadoraList = Object.entries(operadoraStats).map(([op, s]) => ({ op, ...s, taxaSucesso: s.total > 0 ? ((s.sucesso / s.total) * 100).toFixed(1) : 0, taxaNegada: s.total > 0 ? ((s.negada / s.total) * 100).toFixed(1) : 0 })).filter(o => o.total >= 5).sort((a, b) => b.total - a.total);
 
-  // ── Dashboard de Campanhas ────────────────────────────────────────────────────
   const VALOR_BONIF      = 54.90;
   const bonifRows        = relatorio.filter(r => String(r["Tipo"] || "").trim().toUpperCase() === "BONIFICADA");
   const totalBonificados = bonifRows.length;
@@ -373,13 +367,13 @@ function calcularDados(relatorio, backoffice) {
 
   return {
     total, ativos, cancelados,
-    portabilidades: { total: portRows.length, ativos: portAtivos, cancelados: portCancel },
+    portabilidades: { total: portRows.length, ativos: portAtivos, cancelados: portCancel, aprovadas: portAprovadas, negadas: portNegadas, andamento: portAndamento, totalAtivos: portAtivosRows.length },
     novasLinhas:    { total: novaRows.length, ativos: novaAtivos, cancelados: novaCancel },
     chip:           { total: esimRows.length + fisicoRows.length, esim: esimRows.length, fisico: fisicoRows.length },
     pagamento:      { total: totalPgto, formas: contagemPgto },
     bonificados:    { total: bonifTotal, normal: bonifNormal },
     logistica:      { total: logisticaTotal },
-    recorrencia:    { com: comRecorrencia, sem: semRecorrencia },
+    recorrencia:    { total: ativosTotal.length, com: comRecorrencia, sem: semRecorrencia },
     operadoras: contagemOp, estados: contagemEstados, bugs: { total: 0 },
     tempoMedioVida, kpi, planos,
     timeline: { todosMeses, labels: labelsTimeline, ativacoes: ativacoesArr, cancelamentos: cancelamentosArr, churn: churnArr, ativacoesPorMes, cancelamentosPorMes, ativacoesPorDia, cancelamentosPorDia },
@@ -389,43 +383,30 @@ function calcularDados(relatorio, backoffice) {
 }
 
 // ── Helpers de data ───────────────────────────────────────────────────────────
-// CORREÇÃO PRINCIPAL: parseDateBR sempre retorna Date em UTC para evitar
-// deslocamento de fuso horário. Número serial do Excel → UTC correto.
 function parseDateBR(val) {
   if (val === null || val === undefined || val === "") return null;
-
-  // Já é um objeto Date (quando cellDates: true no SheetJS)
   if (val instanceof Date) {
     if (isNaN(val.getTime())) return null;
-    // Recriar como UTC para evitar deslocamento
     return new Date(Date.UTC(val.getFullYear(), val.getMonth(), val.getDate()));
   }
-
-  // Número serial do Excel
-  // CORREÇÃO: usar Math.floor (não Math.round) e recriar como UTC
   if (typeof val === "number") {
     if (val <= 0) return null;
-    // Excel serial: dias desde 1900-01-00 (com bug do 1900-02-29)
-    const serial = val > 59 ? val - 1 : val; // corrige bug do Lotus 1-2-3
+    const serial = val > 59 ? val - 1 : val;
     const msDesde1900 = (serial - 1) * 86400000;
-    const base = Date.UTC(1900, 0, 1); // 1900-01-01 UTC
+    const base = Date.UTC(1900, 0, 1);
     const d = new Date(base + msDesde1900);
     if (isNaN(d.getTime())) return null;
-    // Recriar como UTC puro sem hora
     return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   }
-
   if (typeof val === "string") {
     const s = val.trim();
     if (!s) return null;
-    // dd/mm/yyyy ou dd/mm/yyyy hh:mm
     const partes = s.split("/");
     if (partes.length >= 3) {
       const dia = parseInt(partes[0]), mes = parseInt(partes[1]), ano = parseInt(partes[2].split(" ")[0]);
       if (!isNaN(dia) && !isNaN(mes) && !isNaN(ano))
         return new Date(Date.UTC(ano, mes - 1, dia));
     }
-    // yyyy-mm-dd ou yyyy-mm-dd hh:mm:ss
     const iso = s.split(" ")[0].split("-");
     if (iso.length === 3) {
       const ano = parseInt(iso[0]), mes = parseInt(iso[1]), dia = parseInt(iso[2]);
@@ -436,7 +417,6 @@ function parseDateBR(val) {
   return null;
 }
 
-// ── CORREÇÃO: mesLabel usa getUTCFullYear/getUTCMonth para datas UTC ──────────
 function mesLabel(date) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
@@ -464,36 +444,67 @@ function preencherCards(d) {
   set("bonificados", fmt(d.bonificados.total)); set("bonif-pct", pct(d.bonificados.total, d.total) + " do total");
   set("logistica", fmt(d.logistica.total)); set("logistica-pct", pct(d.logistica.total, d.total) + " do total");
   set("tempo-vida", d.tempoMedioVida + " dias");
-  set("port-total", fmt(d.portabilidades.total)); set("port-ativos", fmt(d.portabilidades.ativos)); set("port-ativos-pct", pct(d.portabilidades.ativos, d.portabilidades.total));
-  set("port-cancelados", fmt(d.portabilidades.cancelados)); set("port-cancelados-pct", pct(d.portabilidades.cancelados, d.portabilidades.total));
-  set("novas-total", fmt(d.novasLinhas.total)); set("novas-ativos", fmt(d.novasLinhas.ativos)); set("novas-ativos-pct", pct(d.novasLinhas.ativos, d.novasLinhas.total));
-  set("novas-cancelados", fmt(d.novasLinhas.cancelados)); set("novas-cancelados-pct", pct(d.novasLinhas.cancelados, d.novasLinhas.total));
-  set("chip-total", fmt(d.chip.total)); set("chip-esim", fmt(d.chip.esim)); set("chip-esim-pct", pct(d.chip.esim, d.chip.total));
-  set("chip-fisico", fmt(d.chip.fisico)); set("chip-fisico-pct", pct(d.chip.fisico, d.chip.total));
+
+  // Portabilidades
+  set("port-total",          fmt(d.portabilidades.total));
+  set("port-ativos",         fmt(d.portabilidades.ativos));
+  set("port-ativos-pct",     pct(d.portabilidades.ativos, d.portabilidades.total));
+  set("port-cancelados",     fmt(d.portabilidades.cancelados));
+  set("port-cancelados-pct", pct(d.portabilidades.cancelados, d.portabilidades.total));
+  set("port-status-total",   fmt(d.portabilidades.totalAtivos));
+  set("port-aprov",          fmt(d.portabilidades.aprovadas));
+  set("port-aprov-pct",      pct(d.portabilidades.aprovadas, d.portabilidades.totalAtivos));
+  set("port-neg",            fmt(d.portabilidades.negadas));
+  set("port-neg-pct",        pct(d.portabilidades.negadas, d.portabilidades.totalAtivos));
+  set("port-andamento",      fmt(d.portabilidades.andamento));
+  set("port-andamento-pct",  pct(d.portabilidades.andamento, d.portabilidades.totalAtivos));
+
+  // Novas linhas
+  set("novas-total",          fmt(d.novasLinhas.total));
+  set("novas-ativos",         fmt(d.novasLinhas.ativos));
+  set("novas-ativos-pct",     pct(d.novasLinhas.ativos, d.novasLinhas.total));
+  set("novas-cancelados",     fmt(d.novasLinhas.cancelados));
+  set("novas-cancelados-pct", pct(d.novasLinhas.cancelados, d.novasLinhas.total));
+
+  // Chip
+  set("chip-total",     fmt(d.chip.total));
+  set("chip-esim",      fmt(d.chip.esim));
+  set("chip-esim-pct",  pct(d.chip.esim, d.chip.total));
+  set("chip-fisico",    fmt(d.chip.fisico));
+  set("chip-fisico-pct",pct(d.chip.fisico, d.chip.total));
+
+  // Pagamento
   set("pgto-total", fmt(d.pagamento.total));
   const tabelaPgto = document.getElementById("pgto-tabela");
   if (tabelaPgto) tabelaPgto.innerHTML = Object.entries(d.pagamento.formas).sort((a,b)=>b[1]-a[1]).map(([nome,qtd])=>`<tr><td>${nome}</td><td>${fmt(qtd)}</td><td>${pct(qtd,d.pagamento.total)}</td></tr>`).join("");
-  set("bonif-total", fmt(d.bonificados.total)); set("bonif-normal", fmt(d.bonificados.normal)); set("pagamento-normal", fmt(d.bonificados.normal));
+
+  // Bonificados
+  set("bonif-total",      fmt(d.bonificados.total));
+  set("bonif-normal",     fmt(d.bonificados.normal));
+  set("pagamento-normal", fmt(d.bonificados.normal));
+
+  // Recorrência
   const totalRec = d.recorrencia.com + d.recorrencia.sem;
-  set("rec-com", fmt(d.recorrencia.com)); set("rec-com-pct", pct(d.recorrencia.com, totalRec));
-  set("rec-sem", fmt(d.recorrencia.sem)); set("rec-sem-pct", pct(d.recorrencia.sem, totalRec));
+  set("rec-total",   fmt(totalRec));
+  set("rec-com",     fmt(d.recorrencia.com));
+  set("rec-com-pct", pct(d.recorrencia.com, totalRec));
+  set("rec-sem",     fmt(d.recorrencia.sem));
+  set("rec-sem-pct", pct(d.recorrencia.sem, totalRec));
 }
 
+// removidas referências a k.churn que não existe mais no kpi
 function preencherKPI(d) {
   const k = d.kpi;
-  const varAtiv  = variacao(k.ativacoes.atual, k.ativacoes.anterior);
-  const varCanc  = variacaoInversa(k.cancelamentos.atual, k.cancelamentos.anterior);
-  const varChurn = variacaoInversa(k.churn.atual, k.churn.anterior);
-  set("kpi-mes", `${k.mesAnterior} → ${k.mesAtual}`);
+  const varAtiv = variacao(k.ativacoes.atual, k.ativacoes.anterior);
+  const varCanc = variacaoInversa(k.cancelamentos.atual, k.cancelamentos.anterior);
+  set("kpi-mes-ativ", k.mesAtual);
+  set("kpi-mes-canc", k.mesAtual);
   set("kpi-ativ-atual", fmt(k.ativacoes.atual)); set("kpi-ativ-ant", fmt(k.ativacoes.anterior));
   const elVarAtiv = document.getElementById("kpi-ativ-var");
   if (elVarAtiv) { elVarAtiv.textContent = varAtiv.texto; elVarAtiv.className = "kpi-var " + varAtiv.classe; }
   set("kpi-canc-atual", fmt(k.cancelamentos.atual)); set("kpi-canc-ant", fmt(k.cancelamentos.anterior));
   const elVarCanc = document.getElementById("kpi-canc-var");
   if (elVarCanc) { elVarCanc.textContent = varCanc.texto; elVarCanc.className = "kpi-var " + varCanc.classe; }
-  set("kpi-churn-atual", k.churn.atual + "%"); set("kpi-churn-ant", k.churn.anterior + "%");
-  const elVarChurn = document.getElementById("kpi-churn-var");
-  if (elVarChurn) { elVarChurn.textContent = varChurn.texto; elVarChurn.className = "kpi-var " + varChurn.classe; }
 }
 
 function renderizarPlanos(d) {
@@ -508,33 +519,32 @@ function renderizarPlanos(d) {
 
 function renderizarGraficos(d) {
   const gridColor = "#ffffff0f", tickColor = "#94A3B8";
-  [chartPort,chartNova,chartChip,chartPgto,chartTimeline,chartRecorrencia,chartOperadoras].forEach(c=>{if(c)c.destroy();});
-  chartPort=chartNova=chartChip=chartPgto=chartTimeline=chartRecorrencia=chartOperadoras=null;
+  [chartPort,chartNova,chartPortGeral,chartChip,chartPgto,chartTimeline,chartRecorrencia,chartOperadoras].forEach(c=>{if(c)c.destroy();});
+  chartPort=chartNova=chartPortGeral=chartChip=chartPgto=chartTimeline=chartRecorrencia=chartOperadoras=null;
 
   const optD = { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } } };
   chartPort = new Chart(document.getElementById("chartPort"),{type:"doughnut",data:{labels:["Ativos","Cancelados"],datasets:[{data:[d.portabilidades.ativos,d.portabilidades.cancelados],backgroundColor:["#8B5CF6","#EC4899"],borderWidth:0}]},options:optD});
   chartNova = new Chart(document.getElementById("chartNova"),{type:"doughnut",data:{labels:["Ativos","Cancelados"],datasets:[{data:[d.novasLinhas.ativos,d.novasLinhas.cancelados],backgroundColor:["#8B5CF6","#EC4899"],borderWidth:0}]},options:optD});
+  const elPortGeral = document.getElementById("chartPortGeral");
+  if (elPortGeral) chartPortGeral = new Chart(elPortGeral,{type:"doughnut",data:{labels:["Aprovadas","Negadas","Em andamento"],datasets:[{data:[d.portabilidades.aprovadas,d.portabilidades.negadas,d.portabilidades.andamento],backgroundColor:["#10B981","#8B5CF6","#EC4899"],borderWidth:0}]},options:optD});
   chartChip = new Chart(document.getElementById("chartChip"),{type:"doughnut",data:{labels:["eSIM","Físico"],datasets:[{data:[d.chip.esim,d.chip.fisico],backgroundColor:["#8B5CF6","#EC4899"],borderWidth:0}]},options:optD});
+  chartRecorrencia = new Chart(document.getElementById("chartRecorrencia"),{type:"doughnut",data:{labels:["Com recorrência","Sem recorrência"],datasets:[{data:[d.recorrencia.com,d.recorrencia.sem],backgroundColor:["#10B981","#EC4899"],borderWidth:0}]},options:optD});
 
   const pgtoEntries = Object.entries(d.pagamento.formas).sort((a,b)=>b[1]-a[1]);
   chartPgto = new Chart(document.getElementById("chartPgto"),{type:"doughnut",data:{labels:pgtoEntries.map(([n])=>n),datasets:[{data:pgtoEntries.map(([,q])=>q),backgroundColor:["#EC4899","#8B5CF6","#10B981","#06B6D4","#F59E0B","#F97316","#14B8A6"],borderWidth:0}]},options:optD});
-  chartRecorrencia = new Chart(document.getElementById("chartRecorrencia"),{type:"doughnut",data:{labels:["Com recorrência","Sem recorrência"],datasets:[{data:[d.recorrencia.com,d.recorrencia.sem],backgroundColor:["#10B981","#EC4899"],borderWidth:0}]},options:optD});
 
   const topOp = Object.entries(d.operadoras).sort((a,b)=>b[1]-a[1]).slice(0,6);
   chartOperadoras = new Chart(document.getElementById("chartOperadoras"),{type:"bar",data:{labels:topOp.map(([n])=>n),datasets:[{data:topOp.map(([,q])=>q),backgroundColor:["#10B981","#06B6D4","#F59E0B","#8B5CF6","#EC4899","#F97316"],borderRadius:4,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:tickColor,font:{size:11}},grid:{display:false}},y:{ticks:{color:tickColor,font:{size:11}},grid:{color:gridColor},beginAtZero:true}}}});
 
   chartTimeline = new Chart(document.getElementById("chartTimeline"),{type:"line",data:{labels:d.timeline.labels,datasets:[
-    {label:"Ativações",data:d.timeline.ativacoes,borderColor:"#10B981",backgroundColor:"#10b9811a",fill:true,tension:0.3,pointRadius:3,yAxisID:"y"},
-    {label:"Cancelamentos",data:d.timeline.cancelamentos,borderColor:"#EF4444",backgroundColor:"#ef44441a",fill:true,tension:0.3,pointRadius:3,yAxisID:"y"},
-    {label:"Churn %",data:d.timeline.churn,borderColor:"#F59E0B",backgroundColor:"#f59e0b0d",fill:false,tension:0.3,pointRadius:3,borderDash:[5,3],yAxisID:"y2"},
+    {label:"Ativações",data:d.timeline.ativacoes,borderColor:"#10B981",backgroundColor:"#10b9811a",fill:true,tension:0.3,pointRadius:3},
+    {label:"Cancelamentos",data:d.timeline.cancelamentos,borderColor:"#EF4444",backgroundColor:"#ef44441a",fill:true,tension:0.3,pointRadius:3},
   ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{
     x:{ticks:{color:tickColor,font:{size:11}},grid:{color:gridColor}},
-    y:{ticks:{color:tickColor,font:{size:11}},grid:{color:gridColor},beginAtZero:true,position:"left"},
-    y2:{ticks:{color:"#CBD5E1",font:{size:11},callback:v=>v+"%"},grid:{display:false},beginAtZero:true,position:"right"},
+    y:{ticks:{color:tickColor,font:{size:11}},grid:{color:gridColor},beginAtZero:true},
   }}});
 }
 
-// ── Filtro de meses ───────────────────────────────────────────────────────────
 function construirFiltroMeses(d) {
   const container = document.getElementById("filtroMeses");
   container.innerHTML = "";
@@ -547,8 +557,8 @@ function construirFiltroMeses(d) {
     btn.textContent = d.timeline.labels[i]; btn.className = "filtro-btn"; btn.dataset.mes = mes;
     btn.addEventListener("click", () => aplicarFiltro(mes));
     container.appendChild(btn);
-     aplicarFiltro("todos");
   });
+  aplicarFiltro("todos");
 }
 
 function aplicarFiltro(mesSelecionado) {
@@ -556,7 +566,7 @@ function aplicarFiltro(mesSelecionado) {
   const d = dadosGlobais.timeline;
   let labels, ativacoes, cancelamentos;
   if (mesSelecionado === "todos") {
-    labels = d.labels; ativacoes = d.ativacoes; cancelamentos = d.cancelamentos; churn = d.churn || [];
+    labels = d.labels; ativacoes = d.ativacoes; cancelamentos = d.cancelamentos || [];
   } else {
     const [ano, mes] = mesSelecionado.split("-").map(Number);
     const diasNoMes = new Date(ano, mes, 0).getDate();
@@ -565,18 +575,114 @@ function aplicarFiltro(mesSelecionado) {
     labels        = Array.from({length:diasNoMes},(_,i)=>String(i+1));
     ativacoes     = Array.from({length:diasNoMes},(_,i)=>diasAtiv[i+1]||0);
     cancelamentos = Array.from({length:diasNoMes},(_,i)=>diasCanc[i+1]||0);
-    churn         = ativacoes.map((atv,i)=>atv>0?parseFloat(((cancelamentos[i]/atv)*100).toFixed(1)):0);
   }
-  chartTimeline.data.labels=labels; chartTimeline.data.datasets[0].data=ativacoes;
-  chartTimeline.data.datasets[1].data=cancelamentos; chartTimeline.data.datasets[2].data=churn;
+  chartTimeline.data.labels=labels;
+  chartTimeline.data.datasets[0].data=ativacoes;
+  chartTimeline.data.datasets[1].data=cancelamentos;
   chartTimeline.update();
-    const totalAtv  = ativacoes.reduce((a,b)=>a+b,0);
+  const totalAtv  = ativacoes.reduce((a,b)=>a+b,0);
   const totalCanc = cancelamentos.reduce((a,b)=>a+b,0);
-  const churnMed  = totalAtv > 0 ? ((totalCanc/totalAtv)*100).toFixed(1) : 0;
   set("legend-atv-total",  fmt(totalAtv));
   set("legend-canc-total", fmt(totalCanc));
-  set("legend-churn-total", churnMed + "%");
 }
+
+// ── Filtro global ─────────────────────────────────────────────────────────────
+function construirFiltroGlobal(d) {
+  const container = document.getElementById("filtroGlobal");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const periodoWrap = document.createElement("div");
+  periodoWrap.style.cssText = "display:flex;flex-direction:column;gap:6px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border);width:100%;";
+  periodoWrap.innerHTML = `
+    <span style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Período personalizado</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input type="date" id="filtroDataInicio" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:12px;color:var(--text);outline:none;">
+      <span style="color:var(--text-muted);font-size:12px;">até</span>
+      <input type="date" id="filtroDataFim" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:12px;color:var(--text);outline:none;">
+      <button class="filtro-btn" id="btnAplicarPeriodo" style="white-space:nowrap;">✓ Aplicar</button>
+    </div>
+  `;
+  container.appendChild(periodoWrap);
+
+  document.getElementById("btnAplicarPeriodo").addEventListener("click", () => {
+    const inicio = document.getElementById("filtroDataInicio").value;
+    const fim    = document.getElementById("filtroDataFim").value;
+    if (!inicio || !fim) return;
+    const dtInicio = new Date(inicio + "T00:00:00Z");
+    const dtFim    = new Date(fim    + "T23:59:59Z");
+    const relFiltrado = arquivoPrincipal.filter(r => {
+      const dataAtiv = parseDateBR(r["Data de ativação"]);
+      return dataAtiv && dataAtiv >= dtInicio && dataAtiv <= dtFim;
+    });
+    document.querySelectorAll("#filtroGlobal .filtro-btn").forEach(b => b.classList.remove("active"));
+    document.getElementById("btnAplicarPeriodo").classList.add("active");
+    const dadosFiltrados = calcularDados(relFiltrado, arquivoBackoffice);
+    dadosFiltrados.kpi.mesAtual = `${inicio.split("-").reverse().slice(0,2).join("/")} → ${fim.split("-").reverse().slice(0,2).join("/")}`;
+    dadosGlobais = dadosFiltrados;
+    renderDash(dadosFiltrados);
+    construirFiltroMeses(dadosFiltrados);
+    setTimeout(() => renderizarMapa(dadosFiltrados), 100);
+    document.getElementById("filtroGlobal").style.display = "none";
+  });
+
+  const labelMeses = document.createElement("span");
+  labelMeses.style.cssText = "font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block;";
+  labelMeses.textContent = "Por mês";
+  container.appendChild(labelMeses);
+
+  const btnTodos = document.createElement("button");
+  btnTodos.textContent = "Todos os meses"; btnTodos.className = "filtro-btn active"; btnTodos.dataset.mes = "todos";
+  btnTodos.addEventListener("click", () => {
+    aplicarFiltroGlobal("todos", d);
+    document.getElementById("filtroGlobal").style.display = "none";
+  });
+  container.appendChild(btnTodos);
+
+  d.timeline.todosMeses.forEach((mes, i) => {
+    const btn = document.createElement("button");
+    btn.textContent = d.timeline.labels[i]; btn.className = "filtro-btn"; btn.dataset.mes = mes;
+    btn.addEventListener("click", () => {
+      aplicarFiltroGlobal(mes, d);
+      document.getElementById("filtroGlobal").style.display = "none";
+    });
+    container.appendChild(btn);
+  });
+}
+
+function aplicarFiltroGlobal(mesSelecionado, d) {
+  document.querySelectorAll("#filtroGlobal .filtro-btn").forEach(b => b.classList.toggle("active", b.dataset.mes === mesSelecionado));
+  const relFiltrado = mesSelecionado === "todos"
+    ? arquivoPrincipal
+    : arquivoPrincipal.filter(r => {
+        const dataAtiv = parseDateBR(r["Data de ativação"]);
+        return dataAtiv && mesLabel(dataAtiv) === mesSelecionado;
+      });
+  const dadosFiltrados = calcularDados(relFiltrado, arquivoBackoffice);
+  if (mesSelecionado !== "todos") {
+    dadosFiltrados.kpi.ativacoes.atual     = dadosFiltrados.timeline.ativacoesPorMes[mesSelecionado] || 0;
+    dadosFiltrados.kpi.cancelamentos.atual = dadosFiltrados.timeline.cancelamentosPorMes[mesSelecionado] || 0;
+    dadosFiltrados.kpi.mesAtual            = formatarMesLabel(mesSelecionado);
+  }
+  dadosGlobais = dadosFiltrados;
+  renderDash(dadosFiltrados);
+  construirFiltroMeses(dadosFiltrados);
+  setTimeout(() => renderizarMapa(dadosFiltrados), 100);
+}
+
+function toggleFiltroGlobal() {
+  const el = document.getElementById("filtroGlobal");
+  el.style.display = el.style.display === "none" ? "flex" : "none";
+}
+
+document.addEventListener("click", (e) => {
+  const btn = document.getElementById("btnFiltroGlobal");
+  const dropdown = document.getElementById("filtroGlobal");
+  if (!btn || !dropdown) return;
+  if (!btn.contains(e.target) && !dropdown.contains(e.target)) {
+    dropdown.style.display = "none";
+  }
+});
 
 // ── Mapa de calor do Brasil ───────────────────────────────────────────────────
 function renderizarMapa(d) {
@@ -638,7 +744,7 @@ function renderizarClientes(d) {
 
   if (chartPortStatus) { chartPortStatus.destroy(); chartPortStatus = null; }
   const statusEntries = Object.entries(c.statusPortMap).sort((a,b)=>b[1]-a[1]);
-  const statusCores = {"Sucesso":"#10B981","Portabilidade negada":"#EF4444","Portabilidade em andamento":"#F59E0B","Aguardando confirmação":"#06B6D4"};
+  const statusCores = {"Sucesso":"#10B981","Portabilidade negada":"#8B5CF6","Portabilidade em andamento":"#EC4899","Aguardando confirmação":"#06B6D4"};
   const elStatusChart = document.getElementById("chartPortStatus");
   if (elStatusChart) chartPortStatus = new Chart(elStatusChart,{type:"doughnut",data:{labels:statusEntries.map(([s])=>s),datasets:[{data:statusEntries.map(([,v])=>v),backgroundColor:statusEntries.map(([s])=>statusCores[s]||"#8B5CF6"),borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
 
