@@ -61,10 +61,16 @@
 
     <!-- ══ PÁGINA: Dashboard Geral ══ -->
     <div id="page-geral" class="page" style="display:none;">
-      <div class="page-header">
-        <h1>Dashboard Geral</h1>
-        <button class="btn-reload-small" onclick="location.reload()">🔄 Nova planilha</button>
+  <div class="page-header">
+    <h1>Dashboard Geral</h1>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <div style="position:relative;">
+        <button class="btn-reload-small" id="btnFiltroGlobal" onclick="toggleFiltroGlobal()">🗓️ Filtros</button>
+        <div id="filtroGlobal" class="filtro-meses" style="display:none;position:absolute;right:0;top:110%;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px;z-index:50;min-width:360px;box-shadow:0 8px 24px #0006;"></div>
       </div>
+      <button class="btn-reload-small" onclick="location.reload()">🔄 Nova planilha</button>
+    </div>
+  </div>
 
       <p class="section-title">Visão geral</p>
       <div class="cards">
@@ -81,21 +87,21 @@
       <p class="section-title">Variação mensal <span id="kpi-mes" style="font-weight:400; text-transform:none; letter-spacing:0;"></span></p>
       <div class="cards">
         <div class="card">
-          <div class="label">Ativações — mês atual</div>
+            <div class="label">Ativações — <span id="kpi-mes-ativ">mês atual</span></div>
           <div class="value" id="kpi-ativ-atual">—</div>
           <div class="kpi-desc">Novos clientes ativados no mês</div>
           <div class="kpi-footer"><span class="sub">Mês anterior: <span id="kpi-ativ-ant">—</span></span><span id="kpi-ativ-var" class="kpi-var"></span></div>
         </div>
         <div class="card">
-          <div class="label">Cancelamentos — mês atual</div>
+          <div class="label">Cancelamentos — <span id="kpi-mes-canc">mês atual</span></div>
           <div class="value" id="kpi-canc-atual">—</div>
           <div class="kpi-desc">Clientes que cancelaram no mês</div>
           <div class="kpi-footer"><span class="sub">Mês anterior: <span id="kpi-canc-ant">—</span></span><span id="kpi-canc-var" class="kpi-var"></span></div>
         </div>
         <div class="card">
-          <div class="label">Churn — mês atual</div>
+          <div class="label">Churn — <span id="kpi-mes-churn">mês atual</span></div>
           <div class="value" id="kpi-churn-atual">—</div>
-          <div class="kpi-desc">% de cancelamentos sobre ativações do mês</div>
+          <div class="kpi-desc">Cancelamentos do mês ÷ total de ativos da base</div>
           <div class="kpi-footer"><span class="sub">Mês anterior: <span id="kpi-churn-ant">—</span></span><span id="kpi-churn-var" class="kpi-var"></span></div>
         </div>
       </div>
@@ -127,49 +133,66 @@
       </div>
 
       <p class="section-title">Tipo de chip e Forma de pagamento</p>
-      <div class="charts-row">
-        <div class="chart-box">
-          <div class="chart-title">eSIM vs Físico (<span id="chip-total">—</span>)</div>
-          <table class="split-table">
-            <thead><tr><th>Tipo</th><th>Qtd</th><th>%</th></tr></thead>
-            <tbody>
-              <tr><td><span class="badge blue">eSIM</span></td><td id="chip-esim">—</td><td id="chip-esim-pct">—</td></tr>
-              <tr><td><span class="badge amber">Físico</span></td><td id="chip-fisico">—</td><td id="chip-fisico-pct">—</td></tr>
-            </tbody>
-          </table>
-          <div style="position:relative; height:160px; margin-top:12px;"><canvas id="chartChip"></canvas></div>
-        </div>
-        <div class="chart-box">
-          <div class="chart-title">Forma de pagamento (<span id="pgto-total">—</span>)</div>
-          <table class="split-table">
-            <thead><tr><th>Forma</th><th>Qtd</th><th>%</th></tr></thead>
-            <tbody id="pgto-tabela"></tbody>
-          </table>
-          <div style="position:relative; height:160px; margin-top:12px;"><canvas id="chartPgto"></canvas></div>
-        </div>
-      </div>
+<div class="charts-row">
+  <div class="chart-box">
+    <div class="chart-title">eSIM vs Físico (<span id="chip-total">—</span>)</div>
+    <table class="split-table">
+      <thead><tr><th>Tipo</th><th>Qtd</th><th>%</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge blue">eSIM</span></td><td id="chip-esim">—</td><td id="chip-esim-pct">—</td></tr>
+        <tr><td><span class="badge amber">Físico</span></td><td id="chip-fisico">—</td><td id="chip-fisico-pct">—</td></tr>
+      </tbody>
+    </table>
+    <div style="position:relative; height:160px; margin-top:12px;"><canvas id="chartChip"></canvas></div>
+  </div>
+  <div class="chart-box">
+    <div class="chart-title">Forma de pagamento (<span id="pgto-total">—</span>)</div>
+    <table class="split-table">
+      <thead><tr><th>Forma</th><th>Qtd</th><th>%</th></tr></thead>
+      <tbody id="pgto-tabela"></tbody>
+    </table>
+    <div style="position:relative; height:160px; margin-top:12px;"><canvas id="chartPgto"></canvas></div>
+  </div>
+</div>
 
-      <p class="section-title">Recorrência e Top operadoras doadoras</p>
+<p class="section-title">Recorrência e Status de portabilidade</p>
+<div class="charts-row" style="margin-top:16px;">
+  <div class="chart-box">
+    <div class="chart-title">Recorrência (<span id="rec-total">—</span>)</div>
+    <table class="split-table">
+      <thead><tr><th>Tipo</th><th>Qtd</th><th>%</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge green">Com recorrência</span></td><td id="rec-com">—</td><td id="rec-com-pct">—</td></tr>
+        <tr><td><span class="badge red">Sem recorrência</span></td><td id="rec-sem">—</td><td id="rec-sem-pct">—</td></tr>
+      </tbody>
+    </table>
+    <div style="position:relative; height:160px; margin-top:12px;"><canvas id="chartRecorrencia"></canvas></div>
+  </div>
+  <div class="chart-box">
+<div class="chart-title">Status de portabilidades(<span id="port-status-total">—</span>)</div>
+<table class="split-table">
+  <thead><tr><th>Status</th><th>Qtd</th><th>%</th></tr></thead>
+  <tbody>
+<tr><td><span class="badge green">Aprovadas</span></td><td id="port-aprov">—</td><td id="port-aprov-pct">—</td></tr>
+<tr><td><span class="badge red">Negadas</span></td><td id="port-neg">—</td><td id="port-neg-pct">—</td></tr>
+<tr><td><span class="badge amber">Em andamento</span></td><td id="port-andamento">—</td><td id="port-andamento-pct">—</td></tr>
+  </tbody>
+</table>
+<div style="position:relative; height:160px; margin-top:12px;"><canvas id="chartPortGeral"></canvas></div>
+  </div>
+</div>
+
+   <p class="section-title">Top operadoras doadoras e Planos mais usados</p>
       <div class="charts-row">
-        <div class="chart-box">
-          <div class="chart-title">Recorrência</div>
-          <table class="split-table">
-            <thead><tr><th>Tipo</th><th>Qtd</th><th>%</th></tr></thead>
-            <tbody>
-              <tr><td><span class="badge green">Com recorrência</span></td><td id="rec-com">—</td><td id="rec-com-pct">—</td></tr>
-              <tr><td><span class="badge red">Sem recorrência</span></td><td id="rec-sem">—</td><td id="rec-sem-pct">—</td></tr>
-            </tbody>
-          </table>
-          <div style="position:relative; height:160px; margin-top:12px;"><canvas id="chartRecorrencia"></canvas></div>
-        </div>
         <div class="chart-box">
           <div class="chart-title">Top operadoras doadoras</div>
           <div style="position:relative; height:220px;"><canvas id="chartOperadoras"></canvas></div>
         </div>
+        <div class="chart-box">
+          <div class="chart-title">Planos mais usados</div>
+          <div id="planosChart"></div>
+        </div>
       </div>
-
-      <p class="section-title">Planos mais usados</p>
-      <div class="chart-box"><div id="planosChart"></div></div>
 
       <p class="section-title">Ativações e cancelamentos ao longo do tempo</p>
       <div class="chart-box">
@@ -177,7 +200,6 @@
         <div class="legend">
           <span><span class="legend-dot" style="background:#10B981;"></span>Ativações <b id="legend-atv-total" style="color:#10B981;margin-left:4px;">—</b></span>
           <span><span class="legend-dot" style="background:#EF4444;"></span>Cancelamentos <b id="legend-canc-total" style="color:#EF4444;margin-left:4px;">—</b></span>
-          <span><span class="legend-dot" style="background:#F59E0B;"></span>Churn % <b id="legend-churn-total" style="color:#F59E0B;margin-left:4px;">—</b> <small>(eixo direito)</small></span>
         </div>
         <div style="position:relative; height:240px;"><canvas id="chartTimeline"></canvas></div>
       </div>
@@ -206,7 +228,7 @@
         <h1>Dashboard de Clientes</h1>
         <button class="btn-reload-small" onclick="location.reload()">🔄 Nova planilha</button>
       </div>
-
+      
       <!-- ── Cards resumo ── -->
       <p class="section-title">Visão geral</p>
       <div class="cards">
