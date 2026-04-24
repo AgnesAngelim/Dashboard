@@ -221,6 +221,11 @@ h1 { font-size: 20px; font-weight: 500; color: var(--white); }
 
 .chart-title { font-size: 13px; font-weight: 500; color: var(--white); margin-bottom: 12px; }
 
+.logo {
+  width: 15px;
+  height: auto; 
+}
+
 /* ── Tabela ── */
 .split-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .split-table th { font-weight: 500; color: var(--text-muted); text-align: left; padding: 4px 8px; border-bottom: 0.5px solid var(--border); }
