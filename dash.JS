@@ -160,8 +160,8 @@ function calcularDados(relatorio, backoffice) {
 
   const normalizar = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
 
-  const esimRows   = relatorio.filter(r => normalizar(r["Tipo de chip"]) === "esim");
-  const fisicoRows = relatorio.filter(r => normalizar(r["Tipo de chip"]) === "fisico");
+const esimRows   = relatorio.filter(r => isAtivo(r) && normalizar(r["Tipo de chip"]) === "esim");
+const fisicoRows = relatorio.filter(r => isAtivo(r) && normalizar(r["Tipo de chip"]) === "fisico");
 
   const bonifTotal  = relatorio.filter(r => String(r["Tipo"] || "").trim().toUpperCase() === "BONIFICADA").length;
   const bonifNormal = relatorio.filter(r => String(r["Tipo"] || "").trim().toUpperCase() === "NORMAL").length;
