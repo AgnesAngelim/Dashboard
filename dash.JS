@@ -245,15 +245,14 @@ const churnArr = todosMeses.map(m => {
   });
   const tempoMedioVida = countVida > 0 ? Math.round(somaVida / countVida) : 0;
 
-  // Separa listas de meses por tipo para evitar que meses sem ativações
-  // distorçam o "mês anterior" de cada métrica
+  // Separa listas por tipo para o "mês anterior" de cada métrica ser correto
   const mesesComAtivacoes     = todosMeses.filter(m => (ativacoesPorMes[m]    || 0) > 0);
   const mesesComCancelamentos = todosMeses.filter(m => (cancelamentosPorMes[m] || 0) > 0);
 
-  const ultMesAtiv = mesesComAtivacoes[mesesComAtivacoes.length - 1]         || null;
-  const penMesAtiv = mesesComAtivacoes[mesesComAtivacoes.length - 2]         || null;
-  const ultMesCanc = mesesComCancelamentos[mesesComCancelamentos.length - 1]  || null;
-  const penMesCanc = mesesComCancelamentos[mesesComCancelamentos.length - 2]  || null;
+  const ultMesAtiv = mesesComAtivacoes[mesesComAtivacoes.length - 1]          || null;
+  const penMesAtiv = mesesComAtivacoes[mesesComAtivacoes.length - 2]          || null;
+  const ultMesCanc = mesesComCancelamentos[mesesComCancelamentos.length - 1]   || null;
+  const penMesCanc = mesesComCancelamentos[mesesComCancelamentos.length - 2]   || null;
 
   const ultMes = ultMesAtiv;
   const penMes = penMesAtiv;
@@ -615,19 +614,44 @@ function construirFiltroGlobal(d) {
     if (!inicio || !fim) return;
     const dtInicio = new Date(inicio + "T00:00:00Z");
     const dtFim    = new Date(fim    + "T23:59:59Z");
+
+    // Inclui registros cuja data de ativação OU cancelamento esteja no período
     const relFiltrado = arquivoPrincipal.filter(r => {
       const dataAtiv = parseDateBR(r["Data de ativação"]);
-      return dataAtiv && dataAtiv >= dtInicio && dataAtiv <= dtFim;
+      const dataCanc = parseDateBR(r["Data cancelado"]);
+      const dentroAtiv = dataAtiv && dataAtiv >= dtInicio && dataAtiv <= dtFim;
+      const dentroCanc = dataCanc && dataCanc >= dtInicio && dataCanc <= dtFim;
+      return dentroAtiv || dentroCanc;
     });
+
     document.querySelectorAll("#filtroGlobal .filtro-btn").forEach(b => b.classList.remove("active"));
     document.getElementById("btnAplicarPeriodo").classList.add("active");
+
     const dadosFiltrados = calcularDados(relFiltrado, arquivoBackoffice);
-   dadosFiltrados._mesSelecionado = "todos";
-  if (mesSelecionado !== "todos") {
-    dadosFiltrados.kpi.ativacoes.atual     = dadosFiltrados.timeline.ativacoesPorMes[mesSelecionado] || 0;
-    dadosFiltrados.kpi.cancelamentos.atual = dadosFiltrados.timeline.cancelamentosPorMes[mesSelecionado] || 0;
-    dadosFiltrados.kpi.mesAtual            = formatarMesLabel(mesSelecionado);
-  }
+    dadosFiltrados._mesSelecionado = "todos";
+
+    // KPI: recalcula atual e anterior com base nos meses dentro do período
+    const tl = dadosFiltrados.timeline;
+    const mesesAtiv = tl.todosMeses.filter(m => (tl.ativacoesPorMes[m]    || 0) > 0);
+    const mesesCanc = tl.todosMeses.filter(m => (tl.cancelamentosPorMes[m] || 0) > 0);
+
+    const ultAtiv = mesesAtiv[mesesAtiv.length - 1] || null;
+    const penAtiv = mesesAtiv[mesesAtiv.length - 2] || null;
+    const ultCanc = mesesCanc[mesesCanc.length - 1] || null;
+    const penCanc = mesesCanc[mesesCanc.length - 2] || null;
+
+    dadosFiltrados.kpi.ativacoes     = { atual: tl.ativacoesPorMes[ultAtiv]    || 0, anterior: tl.ativacoesPorMes[penAtiv]    || 0 };
+    dadosFiltrados.kpi.cancelamentos = { atual: tl.cancelamentosPorMes[ultCanc] || 0, anterior: tl.cancelamentosPorMes[penCanc] || 0 };
+    dadosFiltrados.kpi.mesAtual      = formatarMesLabel(ultAtiv || "");
+    dadosFiltrados.kpi.mesAnterior   = formatarMesLabel(penAtiv || "");
+
+    const atv = dadosFiltrados.ativos;
+    dadosFiltrados.kpi.churn = {
+      atual:    atv > 0 ? parseFloat((((tl.cancelamentosPorMes[ultCanc] || 0) / atv) * 100).toFixed(2)) : 0,
+      anterior: atv > 0 ? parseFloat((((tl.cancelamentosPorMes[penCanc] || 0) / atv) * 100).toFixed(2)) : 0,
+    };
+
+    dadosGlobais = dadosFiltrados;
     renderDash(dadosFiltrados);
     setTimeout(() => renderizarMapa(dadosFiltrados), 100);
     document.getElementById("filtroGlobal").style.display = "none";
@@ -674,16 +698,13 @@ function aplicarFiltroGlobal(mesSelecionado, d) {
   dadosFiltrados._mesSelecionado = mesSelecionado;
 
   if (mesSelecionado !== "todos") {
-    // Mês atual: somente os dados do mês selecionado (usa timeline completa para garantir)
+    // atual: dados do mês selecionado vindos do histórico completo original
     const ativAtual = d.timeline.ativacoesPorMes[mesSelecionado]    || 0;
     const cancAtual = d.timeline.cancelamentosPorMes[mesSelecionado] || 0;
 
-    // Mês anterior: penúltimo mês COM ativações/cancelamentos antes do selecionado,
-    // buscando nos dados originais completos (d = dados sem filtro)
-    const mesesComAtiv = d.timeline.todosMeses
-      .filter(m => m < mesSelecionado && (d.timeline.ativacoesPorMes[m] || 0) > 0);
-    const mesesComCanc = d.timeline.todosMeses
-      .filter(m => m < mesSelecionado && (d.timeline.cancelamentosPorMes[m] || 0) > 0);
+    // anterior: penúltimo mês com dados ANTES do selecionado, no histórico completo
+    const mesesComAtiv = d.timeline.todosMeses.filter(m => m < mesSelecionado && (d.timeline.ativacoesPorMes[m]    || 0) > 0);
+    const mesesComCanc = d.timeline.todosMeses.filter(m => m < mesSelecionado && (d.timeline.cancelamentosPorMes[m] || 0) > 0);
 
     const mesAntAtiv = mesesComAtiv[mesesComAtiv.length - 1] || null;
     const mesAntCanc = mesesComCanc[mesesComCanc.length - 1] || null;
