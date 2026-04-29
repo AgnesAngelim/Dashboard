@@ -217,7 +217,13 @@ const fisicoRows = relatorio.filter(r => isAtivo(r) && normalizar(r["Tipo de chi
     }
   });
 
-  const todosMeses     = Array.from(new Set([...Object.keys(ativacoesPorMes), ...Object.keys(cancelamentosPorMes)])).sort();
+  const todosMeses = Array.from(
+    new Set([...Object.keys(ativacoesPorMes), ...Object.keys(cancelamentosPorMes)])
+  ).sort((a, b) => {
+    const [ay, am] = a.split("-").map(Number);
+    const [by, bm] = b.split("-").map(Number);
+    return ay !== by ? ay - by : am - bm;
+  });
   const labelsTimeline = todosMeses.map(m => formatarMesLabel(m));
   const ativacoesArr   = todosMeses.map(m => ativacoesPorMes[m] || 0);
   const cancelamentosArr = todosMeses.map(m => cancelamentosPorMes[m] || 0);
@@ -239,17 +245,29 @@ const churnArr = todosMeses.map(m => {
   });
   const tempoMedioVida = countVida > 0 ? Math.round(somaVida / countVida) : 0;
 
-  const ultMes = todosMeses[todosMeses.length - 1];
-  const penMes = todosMeses[todosMeses.length - 2];
+  // Separa listas de meses por tipo para evitar que meses sem ativações
+  // distorçam o "mês anterior" de cada métrica
+  const mesesComAtivacoes     = todosMeses.filter(m => (ativacoesPorMes[m]    || 0) > 0);
+  const mesesComCancelamentos = todosMeses.filter(m => (cancelamentosPorMes[m] || 0) > 0);
+
+  const ultMesAtiv = mesesComAtivacoes[mesesComAtivacoes.length - 1]         || null;
+  const penMesAtiv = mesesComAtivacoes[mesesComAtivacoes.length - 2]         || null;
+  const ultMesCanc = mesesComCancelamentos[mesesComCancelamentos.length - 1]  || null;
+  const penMesCanc = mesesComCancelamentos[mesesComCancelamentos.length - 2]  || null;
+
+  const ultMes = ultMesAtiv;
+  const penMes = penMesAtiv;
+
   const kpi = {
-    ativacoes:     { atual: ativacoesPorMes[ultMes] || 0,     anterior: ativacoesPorMes[penMes] || 0 },
-    cancelamentos: { atual: cancelamentosPorMes[ultMes] || 0, anterior: cancelamentosPorMes[penMes] || 0 },
+    ativacoes:     { atual: ativacoesPorMes[ultMesAtiv]    || 0, anterior: ativacoesPorMes[penMesAtiv]    || 0 },
+    cancelamentos: { atual: cancelamentosPorMes[ultMesCanc] || 0, anterior: cancelamentosPorMes[penMesCanc] || 0 },
     churn: {
-    atual:    ativos > 0 ? parseFloat(((cancelamentosPorMes[ultMes] || 0) / ativos * 100).toFixed(2)) : 0,
-    anterior: ativos > 0 ? parseFloat(((cancelamentosPorMes[penMes] || 0) / ativos * 100).toFixed(2)) : 0,
-  },
-  mesAtual: formatarMesLabel(ultMes || ""), mesAnterior: formatarMesLabel(penMes || ""),
-};
+      atual:    ativos > 0 ? parseFloat(((cancelamentosPorMes[ultMesCanc] || 0) / ativos * 100).toFixed(2)) : 0,
+      anterior: ativos > 0 ? parseFloat(((cancelamentosPorMes[penMesCanc] || 0) / ativos * 100).toFixed(2)) : 0,
+    },
+    mesAtual:    formatarMesLabel(ultMes || ""),
+    mesAnterior: formatarMesLabel(penMes || ""),
+  };
 
   const contagemEstados = {};
   relatorio.forEach(r => {
@@ -570,7 +588,7 @@ chartTimeline = new Chart(document.getElementById("chartTimeline"),{type:"line",
   x:{ticks:{color:tickColor,font:{size:11}},grid:{color:gridColor}},
   y:{ticks:{color:tickColor,font:{size:11}},grid:{color:gridColor},beginAtZero:true},
 }}});
-}
+} // fim renderizarGraficos
 
 // ── Filtro global ─────────────────────────────────────────────────────────────
 function construirFiltroGlobal(d) {
@@ -641,24 +659,50 @@ function construirFiltroGlobal(d) {
 
 function aplicarFiltroGlobal(mesSelecionado, d) {
   document.querySelectorAll("#filtroGlobal .filtro-btn").forEach(b => b.classList.toggle("active", b.dataset.mes === mesSelecionado));
-  
+
   const relFiltrado = mesSelecionado === "todos"
     ? arquivoPrincipal
     : arquivoPrincipal.filter(r => {
-        const dataAtiv  = parseDateBR(r["Data de ativação"]);
-        const dataCanc  = parseDateBR(r["Data cancelado"]);
-        const mesAtiv   = dataAtiv  ? mesLabel(dataAtiv)  : null;
-        const mesCanc   = dataCanc  ? mesLabel(dataCanc)  : null;
+        const dataAtiv = parseDateBR(r["Data de ativação"]);
+        const dataCanc = parseDateBR(r["Data cancelado"]);
+        const mesAtiv  = dataAtiv ? mesLabel(dataAtiv) : null;
+        const mesCanc  = dataCanc ? mesLabel(dataCanc) : null;
         return mesAtiv === mesSelecionado || mesCanc === mesSelecionado;
       });
 
   const dadosFiltrados = calcularDados(relFiltrado, arquivoBackoffice);
   dadosFiltrados._mesSelecionado = mesSelecionado;
+
   if (mesSelecionado !== "todos") {
-    dadosFiltrados.kpi.ativacoes.atual     = dadosFiltrados.timeline.ativacoesPorMes[mesSelecionado] || 0;
-    dadosFiltrados.kpi.cancelamentos.atual = dadosFiltrados.timeline.cancelamentosPorMes[mesSelecionado] || 0;
-    dadosFiltrados.kpi.mesAtual            = formatarMesLabel(mesSelecionado);
+    // Mês atual: somente os dados do mês selecionado (usa timeline completa para garantir)
+    const ativAtual = d.timeline.ativacoesPorMes[mesSelecionado]    || 0;
+    const cancAtual = d.timeline.cancelamentosPorMes[mesSelecionado] || 0;
+
+    // Mês anterior: penúltimo mês COM ativações/cancelamentos antes do selecionado,
+    // buscando nos dados originais completos (d = dados sem filtro)
+    const mesesComAtiv = d.timeline.todosMeses
+      .filter(m => m < mesSelecionado && (d.timeline.ativacoesPorMes[m] || 0) > 0);
+    const mesesComCanc = d.timeline.todosMeses
+      .filter(m => m < mesSelecionado && (d.timeline.cancelamentosPorMes[m] || 0) > 0);
+
+    const mesAntAtiv = mesesComAtiv[mesesComAtiv.length - 1] || null;
+    const mesAntCanc = mesesComCanc[mesesComCanc.length - 1] || null;
+
+    const ativAnterior = mesAntAtiv ? (d.timeline.ativacoesPorMes[mesAntAtiv]    || 0) : 0;
+    const cancAnterior = mesAntCanc ? (d.timeline.cancelamentosPorMes[mesAntCanc] || 0) : 0;
+
+    dadosFiltrados.kpi.ativacoes     = { atual: ativAtual,  anterior: ativAnterior };
+    dadosFiltrados.kpi.cancelamentos = { atual: cancAtual,  anterior: cancAnterior };
+    dadosFiltrados.kpi.mesAtual      = formatarMesLabel(mesSelecionado);
+    dadosFiltrados.kpi.mesAnterior   = formatarMesLabel(mesAntAtiv || "");
+
+    const atv = dadosFiltrados.ativos;
+    dadosFiltrados.kpi.churn = {
+      atual:    atv > 0 ? parseFloat(((cancAtual    / atv) * 100).toFixed(2)) : 0,
+      anterior: atv > 0 ? parseFloat(((cancAnterior / atv) * 100).toFixed(2)) : 0,
+    };
   }
+
   dadosGlobais = dadosFiltrados;
   renderDash(dadosFiltrados);
   setTimeout(() => renderizarMapa(dadosFiltrados), 100);
