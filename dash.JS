@@ -630,10 +630,26 @@ function construirFiltroGlobal(d) {
     const dadosFiltrados = calcularDados(relFiltrado, arquivoBackoffice);
     dadosFiltrados._mesSelecionado = "todos";
 
-    // KPI: recalcula atual e anterior com base nos meses dentro do período
+    // KPI: usa o último mês COMPLETO do período como "atual" e o anterior a ele como "anterior".
+    // Um mês é considerado parcial se a data final do filtro cair dentro dele.
     const tl = dadosFiltrados.timeline;
-    const mesesAtiv = tl.todosMeses.filter(m => (tl.ativacoesPorMes[m]    || 0) > 0);
-    const mesesCanc = tl.todosMeses.filter(m => (tl.cancelamentosPorMes[m] || 0) > 0);
+    const mesFim = mesLabel(new Date(fim + "T00:00:00Z")); // mês da data final do filtro
+
+    // Todos os meses com ativações, excluindo o mês parcial (data final do filtro)
+    const mesesAtivCompletos = tl.todosMeses.filter(m => (tl.ativacoesPorMes[m] || 0) > 0 && m < mesFim);
+    const mesesCancCompletos = tl.todosMeses.filter(m => (tl.cancelamentosPorMes[m] || 0) > 0 && m < mesFim);
+
+    // Se o mês final é completo (dia 28+ ou último dia do mês), inclui ele também
+    const dtFimObj  = new Date(fim + "T00:00:00Z");
+    const ultimoDia = new Date(Date.UTC(dtFimObj.getUTCFullYear(), dtFimObj.getUTCMonth() + 1, 0)).getUTCDate();
+    const mesFimCompleto = dtFimObj.getUTCDate() >= ultimoDia - 2; // tolerância de 2 dias
+
+    const mesesAtiv = mesFimCompleto
+      ? tl.todosMeses.filter(m => (tl.ativacoesPorMes[m]    || 0) > 0)
+      : mesesAtivCompletos;
+    const mesesCanc = mesFimCompleto
+      ? tl.todosMeses.filter(m => (tl.cancelamentosPorMes[m] || 0) > 0)
+      : mesesCancCompletos;
 
     const ultAtiv = mesesAtiv[mesesAtiv.length - 1] || null;
     const penAtiv = mesesAtiv[mesesAtiv.length - 2] || null;
