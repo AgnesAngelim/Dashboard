@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    .modal-visible { opacity: 1 !important; }
+    .modal-visible #modalCidadesInner { transform: translateY(0) !important; }
+  </style>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐋</text></svg>">
 </head>
 <body>
@@ -182,6 +186,22 @@
 <div style="position:relative; height:160px; margin-top:12px;"><canvas id="chartPortGeral"></canvas></div>
   </div>
 </div>
+
+   <p class="section-title">Logística</p>
+      <div class="charts-row">
+        <div class="chart-box">
+          <div class="chart-title">Status de logística (<span id="log-total">—</span>)</div>
+          <table class="split-table">
+            <thead><tr><th>Status</th><th>Qtd</th><th>%</th></tr></thead>
+            <tbody>
+              <tr><td><span class="badge green">Ativa</span></td><td id="log-ativa">—</td><td id="log-ativa-pct">—</td></tr>
+              <tr><td><span class="badge amber">Não ativada</span></td><td id="log-nao-ativada">—</td><td id="log-nao-pct">—</td></tr>
+              <tr><td><span class="badge red">Cancelada</span></td><td id="log-cancelada">—</td><td id="log-cancel-pct">—</td></tr>
+            </tbody>
+          </table>
+          <div style="position:relative; height:160px; margin-top:12px;"><canvas id="chartLogistica"></canvas></div>
+        </div>
+      </div>
 
    <p class="section-title">Top operadoras doadoras e Planos mais usados</p>
       <div class="charts-row">
@@ -437,6 +457,26 @@
     </div><!-- /page-campanhas -->
 
   </main>
+
+  <!-- ── Modal Cidades por Estado ── -->
+  <div id="modalCidades" style="display:none;position:fixed;inset:0;z-index:500;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);opacity:0;transition:opacity .2s ease;" onclick="if(event.target===this)fecharModalCidades()">
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;width:min(520px,94vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 24px 60px #0009;transform:translateY(16px);transition:transform .2s ease;" id="modalCidadesInner">
+      <!-- header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap;" id="modalCidadesHeader"></div>
+      <!-- busca -->
+      <div style="padding:0.75rem 1.25rem 0;">
+        <input id="modalCidadesBusca" type="text" placeholder="🔍 Buscar cidade..." oninput="filtrarModalCidades(this.value)"
+          style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:13px;color:var(--text);outline:none;transition:border-color .2s;"
+          onfocus="this.style.borderColor='#10B981'" onblur="this.style.borderColor='var(--border)'"/>
+      </div>
+      <!-- body -->
+      <div id="modalCidadesBody" style="padding:1rem 1.25rem;overflow-y:auto;flex:1;"></div>
+      <!-- footer -->
+      <div style="padding:0.75rem 1.25rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;">
+        <button onclick="fecharModalCidades()" style="background:var(--bg-card2);color:var(--text-soft);border:1px solid var(--border);border-radius:8px;padding:6px 18px;font-size:13px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor='#10B981';this.style.color='#10B981'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-soft)'">Fechar</button>
+      </div>
+    </div>
+  </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
