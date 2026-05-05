@@ -1,10 +1,4 @@
-// DASH.JS — lê o Excel automaticamente via SheetJS
-// ─────────────────────────────────────────────
-
 const pct = (parte, total) => total ? ((parte / total) * 100).toFixed(1) + "%" : "0%";
-
-// Garante que um grupo de percentuais sempre soma 100%
-// Uso: pctGroup([a, b, c], total) → ["x%", "y%", "z%"] onde z = 100 - x - y
 const pctGroup = (partes, total) => {
   if (!total) return partes.map(() => "0%");
   const vals = partes.map(p => parseFloat(((p / total) * 100).toFixed(1)));
@@ -589,7 +583,7 @@ function renderizarGraficos(d) {
   chartRecorrencia = new Chart(document.getElementById("chartRecorrencia"),{type:"doughnut",data:{labels:["Com recorrência","Sem recorrência"],datasets:[{data:[d.recorrencia.com,d.recorrencia.sem],backgroundColor:["#8B5CF6","#EC4899"],borderWidth:0}]},options:optD});
 
   const elLog = document.getElementById("chartLogistica");
-  if (elLog) chartLogistica = new Chart(elLog,{type:"doughnut",data:{labels:["Ativa","Não ativada","Cancelada"],datasets:[{data:[d.logistica.ativa,d.logistica.naoAtivada,d.logistica.cancelada],backgroundColor:["#10B981","#F59E0B","#EF4444"],borderWidth:0}]},options:optD});
+  if (elLog) chartLogistica = new Chart(elLog,{type:"doughnut",data:{labels:["Ativa","Não ativada","Cancelada"],datasets:[{data:[d.logistica.ativa,d.logistica.naoAtivada,d.logistica.cancelada],backgroundColor:["#8B5CF6","#EC4899","#10B981"],borderWidth:0}]},options:optD});
 
   const pgtoEntries = Object.entries(d.pagamento.formas).sort((a,b)=>b[1]-a[1]);
   chartPgto = new Chart(document.getElementById("chartPgto"),{type:"doughnut",data:{labels:pgtoEntries.map(([n])=>n),datasets:[{data:pgtoEntries.map(([,q])=>q),backgroundColor:["#EC4899","#8B5CF6","#10B981","#06B6D4","#F59E0B","#F97316","#14B8A6"],borderWidth:0}]},options:optD});
@@ -825,7 +819,7 @@ function renderizarMapa(d) {
           const cidades=cidadesPorEstado[uf]||{};
           const numCidades=Object.keys(cidades).length;
           tip.style("display","block").style("left",(ev.clientX+14)+"px").style("top",(ev.clientY-10)+"px")
-            .html(`<strong>${nomesEstados[uf]||uf}</strong><br>${fmt(estados[uf]||0)} clientes${numCidades>0?`<br><span style="color:var(--text-muted);font-size:11px;">🏙️ ${numCidades} cidade${numCidades>1?"s":""} · clique para detalhes</span>`:""}`);
+            .html(`<strong>${nomesEstados[uf]||uf}</strong><br>${fmt(estados[uf]||0)} clientes${numCidades>0?`<br><span style="color:var(--text-muted);font-size:11px;"> ${numCidades} cidade${numCidades>1?"s":""} · clique para detalhes</span>`:""}`);
         })
         .on("mouseleave",()=>tip.style("display","none"))
         .on("click",(ev,f)=>{ tip.style("display","none"); abrirModalCidades(f.properties.sigla||f.id, d); });
