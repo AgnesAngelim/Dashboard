@@ -471,11 +471,9 @@ function renderDash(d) {
 }
 
 function preencherCards(d) {
-  // Ativos / Cancelados — grupo complementar, deve somar 100%
-  const [pAtivos, pCancelados] = pctGroup([d.ativos, d.cancelados], d.total);
   set("total", fmt(d.total));
-  set("ativos", fmt(d.ativos));       set("ativos-pct",    pAtivos    + " do total");
-  set("cancelados", fmt(d.cancelados)); set("cancelados-pct", pCancelados + " do total");
+  set("ativos", fmt(d.ativos));         set("ativos-pct",    pct(d.ativos, d.total)    + " do total");
+  set("cancelados", fmt(d.cancelados)); set("cancelados-pct", pct(d.cancelados, d.total) + " do total");  set("novas", fmt(d.novasLinhas.total)); set("novas-pct", pct(d.novasLinhas.total, d.total) + " do total");
   set("portabilidades", fmt(d.portabilidades.total)); set("port-pct", pct(d.portabilidades.total, d.total) + " do total");
   set("novas", fmt(d.novasLinhas.total)); set("novas-pct", pct(d.novasLinhas.total, d.total) + " do total");
   set("bonificados", fmt(d.bonificados.total)); set("bonif-pct", pct(d.bonificados.total, d.total) + " do total");
