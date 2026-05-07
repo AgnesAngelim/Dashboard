@@ -242,73 +242,56 @@
 
     </div><!-- /page-geral -->
 
-    <!-- ══ PÁGINA: Dashboard de Clientes ══ -->
+<!-- ══ PÁGINA: Dashboard de Clientes ══ -->
     <div id="page-clientes" class="page" style="display:none;">
       <div class="page-header">
         <h1>Dashboard de Clientes</h1>
         <button class="btn-reload-small" onclick="location.reload()">🔄 Nova planilha</button>
       </div>
-      
-      <!-- ── Cards resumo ── -->
+
+      <!-- ── KPI ── -->
       <p class="section-title">Visão geral</p>
       <div class="cards">
         <div class="card"><div class="label">Clientes únicos</div><div class="value" id="cli-total-docs">—</div></div>
-        <div class="card amber"><div class="label">Com números repetidos</div><div class="value" id="cli-com-rep">—</div></div>
-        <div class="card red"><div class="label">Números repetidos</div><div class="value" id="cli-tels-rep">—</div></div>
+        <div class="card red"><div class="label">Números repetidos</div><div class="value" id="cli-tels-rep">—</div><div class="sub">números que aparecem em mais de uma linha</div></div>
+        <div class="card amber"><div class="label">Clientes com nº repetido</div><div class="value" id="cli-com-rep">—</div><div class="sub">clientes que têm esses números</div></div>
+        <div class="card red"><div class="label">Nº em múltiplos clientes</div><div class="value" id="cli-multi-clientes">—</div><div class="sub">mesmo número em CPFs diferentes</div></div>
       </div>
 
-      <!-- ── Cards de risco ── -->
-      <p class="section-title">⚠️ Alertas de risco</p>
-      <div class="cards">
-        <div class="card red"><div class="label">3+ linhas em 30 dias</div><div class="value" id="cli-alerta-rapido">—</div><div class="sub">ativações suspeitas rápidas</div></div>
-        <div class="card red"><div class="label">Número em múltiplos clientes</div><div class="value" id="cli-multi-clientes">—</div><div class="sub">mesmo tel em clientes diferentes</div></div>
-        <div class="card amber"><div class="label">Alto cancelamento</div><div class="value" id="cli-alto-cancelamento">—</div><div class="sub">mais de 50% das linhas canceladas</div></div>
-      </div>
-
-      <!-- ── Ativações por CPF ── -->
-      <p class="section-title">Ativações por cliente</p>
+      <!-- ── Linhas ativadas e repetidas — top 10 por repetidas ── -->
+      <p class="section-title">Linhas ativadas e repetidas por cliente</p>
       <div class="chart-box">
-        <div class="chart-title">Linhas ativadas e repetidas por cliente <span style="font-size:11px;color:var(--text-muted);font-weight:400;">(top 100)</span></div>
+        <div class="chart-title">Linhas ativadas e repetidas por cliente <span style="font-size:11px;color:var(--text-muted);font-weight:400;"></span></div>
         <div class="cli-search-wrap">
-          <input type="text" id="cli-search" class="cli-search" placeholder="🔍 Buscar por nome ou documento..." oninput="filtrarTabelaDoc(this.value)" />
+          <input type="text" id="cli-search" class="cli-search" placeholder="🔍 Buscar por nome, documento ou ID licenciado..." oninput="filtrarTabelaDoc(this.value)" />
         </div>
         <div class="cli-table-wrap">
           <table class="split-table">
-            <thead><tr><th>Nome</th><th>Documento</th><th>Total ativações</th><th>Repetidas</th></tr></thead>
+            <thead><tr><th>Nome</th><th>Documento</th><th>ID Licenciado</th><th>Total ativações</th><th>Repetidas</th></tr></thead>
             <tbody id="cli-tab-doc"></tbody>
           </table>
         </div>
       </div>
 
-      <!-- ── Alertas detalhados ── -->
-      <p class="section-title">Ativações rápidas suspeitas</p>
-      <div class="chart-box">
-        <div class="chart-title">Clientes com 3+ ativações em até 30 dias</div>
-        <div class="cli-table-wrap">
-          <table class="split-table">
-            <thead><tr><th>Nome</th><th>Documento</th><th>Total linhas</th><th>Intervalo 3 ativações</th></tr></thead>
-            <tbody id="cli-tab-rapido"></tbody>
-          </table>
-        </div>
-      </div>
-
+      <!-- ── Número em múltiplos clientes ── -->
       <p class="section-title">Número de telefone em múltiplos clientes</p>
       <div class="chart-box">
-        <div class="chart-title">Mesmo número como operadora doadora para clientes diferentes</div>
+        <div class="chart-title">Mesmo número para clientes diferentes</div>
         <div class="cli-table-wrap">
           <table class="split-table">
-            <thead><tr><th>Número</th><th>Total linhas</th><th>Clientes distintos</th><th>Documentos</th></tr></thead>
+            <thead><tr><th>Número</th><th>Total linhas</th><th>Clientes distintos</th><th>ID Licenciado</th><th>Documentos</th></tr></thead>
             <tbody id="cli-tab-multi"></tbody>
           </table>
         </div>
       </div>
 
-      <p class="section-title">Clientes com alto índice de cancelamento</p>
+      <!-- ── Índice de cancelamento — top 10 ── -->
+      <p class="section-title">Índice de cancelamento</p>
       <div class="chart-box">
-        <div class="chart-title">Clientes com mais de 50% das linhas canceladas (mín. 2 linhas)</div>
+        <div class="chart-title">Clientes com mais de 50% das linhas canceladas <span style="font-size:11px;color:var(--text-muted);font-weight:400;">(mín. 2 linhas)</span></div>
         <div class="cli-table-wrap">
           <table class="split-table">
-            <thead><tr><th>Nome</th><th>Documento</th><th>Total linhas</th><th>Canceladas</th><th>% cancelado</th></tr></thead>
+            <thead><tr><th>Nome</th><th>Documento</th><th>ID Licenciado</th><th>Total linhas</th><th>Canceladas</th><th>% cancelado</th></tr></thead>
             <tbody id="cli-tab-cancel"></tbody>
           </table>
         </div>
@@ -326,29 +309,19 @@
           </table>
         </div>
         <div class="chart-box">
-          <div class="chart-title">Números repetidos na operadora doadora</div>
+          <div class="chart-title">Números repetidos</div>
           <div class="cli-table-wrap">
             <table class="split-table">
-              <thead><tr><th>Número</th><th>Ocorrências</th><th>Clientes</th></tr></thead>
+              <thead><tr><th>Número</th><th>Ocorrências</th><th>ID Licenciado</th><th>Clientes</th></tr></thead>
               <tbody id="cli-tab-tels"></tbody>
             </table>
           </div>
         </div>
       </div>
 
-      <!-- ── Análise por operadora ── -->
-      <p class="section-title">Análise por operadora doadora</p>
-      <div class="charts-row">
-        <div class="chart-box">
-          <div class="chart-title">Sucesso vs Negada por operadora (top 10)</div>
-          <div style="position:relative; height:240px;"><canvas id="chartOpSucesso"></canvas></div>
-        </div>
-        <div class="chart-box">
-          <div class="chart-title">Operadoras com mais portabilidades negadas</div>
-          <div style="position:relative; height:240px;"><canvas id="chartOpNegada"></canvas></div>
-        </div>
-      </div>
-      <div class="chart-box" style="margin-top:16px;">
+      <!-- ── Detalhamento por operadora ── -->
+      <p class="section-title">Detalhamento por operadora doadora</p>
+      <div class="chart-box">
         <div class="chart-title">Detalhamento por operadora</div>
         <div class="cli-table-wrap">
           <table class="split-table">
@@ -481,6 +454,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-  <script src="dash.JS"></script>
+<script src="dash-core.js"></script>
+<script src="dash-geral.js"></script>
+<script src="dash-clientes.js"></script>
+<script src="dash-campanhas.js"></script>
 </body>
 </html>
