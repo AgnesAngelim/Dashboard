@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .modal-visible { opacity: 1 !important; }
+    .modal-visible #modalCidadesInner { transform: translateY(0) !important; }
+  </style>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐋</text></svg>">
+</head>
+<body>
+
+  <!-- ── Menu lateral ── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="logo.png" alt="logo da empresa" class="logo">
+      <span class="sidebar-logo-text">iGreen</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-page="geral">
+        <span class="nav-icon">🏠</span>
+        <span class="nav-label">Dashboard Geral</span>
+      </button>
+      <button class="nav-item" data-page="clientes">
+        <span class="nav-icon">👥</span>
+        <span class="nav-label">Dashboard de Clientes</span>
+      </button>
+      <button class="nav-item" data-page="campanhas">
+        <span class="nav-icon">🎯</span>
+        <span class="nav-label">Dashboard de Campanhas</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <button id="btnTema" class="btn-tema">☀️ Claro</button>
+    </div>
+  </aside>
+
+  <!-- ── Conteúdo principal ── -->
+  <main class="main-content">
+
+    <!-- ── Zona de upload ── -->
+    <div id="uploadArea">
+      <div class="upload-grid">
+        <div id="dropZone1" class="drop-zone" data-zone="1">
+          <div class="drop-icon">📋</div>
+          <div class="drop-text">Planilha de Relatório</div>
+          <div class="drop-sub">Arraste ou clique para selecionar</div>
+          <input type="file" id="fileInput1" accept=".xlsx,.xls" style="display:none" />
+          <div id="status1" class="upload-badge"></div>
+        </div>
+        <div id="dropZone2" class="drop-zone" data-zone="2">
+          <div class="drop-icon">🗂️</div>
+          <div class="drop-text">Planilha BackOffice</div>
+          <div class="drop-sub">Arraste ou clique para selecionar</div>
+          <input type="file" id="fileInput2" accept=".xlsx,.xls" style="display:none" />
+          <div id="status2" class="upload-badge"></div>
+        </div>
+      </div>
+      <p id="uploadStatus" class="upload-status" style="text-align:center;"></p>
+    </div>
+
+    <!-- ══ PÁGINA: Dashboard Geral ══ -->
+    <div id="page-geral" class="page" style="display:none;">
+  <div class="page-header">
+    <h1>Dashboard Geral</h1>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <div style="position:relative;">
+        <button class="btn-reload-small" id="btnFiltroGlobal" onclick="toggleFiltroGlobal()">🗓️ Filtros</button>
+        <div id="filtroGlobal" class="filtro-meses" style="display:none;position:absolute;right:0;top:110%;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px;z-index:50;min-width:360px;box-shadow:0 8px 24px #0006;"></div>
+      </div>
+      <button class="btn-reload-small" onclick="location.reload()">🔄 Nova planilha</button>
+    </div>
+  </div>
+
+      <p class="section-title">Visão geral</p>
+      <div class="cards">
+        <div class="card"><div class="label">Total de clientes</div><div class="value" id="total">—</div></div>
+        <div class="card green"><div class="label">Ativos</div><div class="value" id="ativos">—</div><div class="sub" id="ativos-pct"></div></div>
+        <div class="card red"><div class="label">Cancelados</div><div class="value" id="cancelados">—</div><div class="sub" id="cancelados-pct"></div></div>
+        <div class="card blue"><div class="label">Portabilidades</div><div class="value" id="portabilidades">—</div><div class="sub" id="port-pct"></div></div>
+        <div class="card amber"><div class="label">Novas linhas</div><div class="value" id="novas">—</div><div class="sub" id="novas-pct"></div></div>
+        <div class="card"><div class="label">Bonificados</div><div class="value" id="bonificados">—</div><div class="sub" id="bonif-pct"></div></div>
+        <div class="card"><div class="label">Logística</div><div class="value" id="logistica">—</div><div class="sub" id="logistica-pct"></div></div>
+        <div class="card"><div class="label">Tempo médio de vida</div><div class="value" id="tempo-vida">—</div></div>
+      </div>
+
+      <p class="section-title">Variação mensal <span id="kpi-mes" style="font-weight:400; text-transform:none; letter-spacing:0;"></span></p>
+      <div class="cards">
+        <div class="card">
+            <div class="label">Ativações — <span id="kpi-mes-ativ">mês atual</span></div>
+          <div class="value" id="kpi-ativ-atual">—</div>
+          <div class="kpi-desc">Novos clientes ativados no mês</div>
+          <div class="kpi-footer"><span class="sub">Mês anterior: <span id="kpi-ativ-ant">—</span></span><span id="kpi-ativ-var" class="kpi-var"></span></div>
+        </div>
+        <div class="card">
+          <div class="label">Cancelamentos — <span id="kpi-mes-canc">mês atual</span></div>
+          <div class="value" id="kpi-canc-atual">—</div>
+          <div class="kpi-desc">Clientes que cancelaram no mês</div>
+          <div class="kpi-footer"><span class="sub">Mês anterior: <span id="kpi-canc-ant">—</span></span><span id="kpi-canc-var" class="kpi-var"></span></div>
+        </div>
+        <div class="card">
+          <div class="label">Churn — <span id="kpi-mes-churn">mês atual</span></div>
+          <div class="value" id="kpi-churn-atual">—</div>
+          <div class="kpi-desc">Cancelamentos do mês ÷ total de ativos da base</div>
+          <div class="kpi-footer"><span class="sub">Mês anterior: <span id="kpi-churn-ant">—</span></span><span id="kpi-churn-var" class="kpi-var"></span></div>
+        </div>
+      </div>
+
+      <p class="section-title">Portabilidade vs Nova linha</p>
+      <div class="charts-row">
+        <div class="chart-box">
+          <div class="chart-title">Portabilidades (<span id="port-total">—</span>)</div>
+          <table class="split-table">
+            <thead><tr><th>Status</th><th>Qtd</th><th>%</th></tr></thead>
+            <tbody>
+              <tr><td><span class="badge green">Ativo</span></td><td id="port-ativos">—</td><td id="port-ativos-pct">—</td></tr>
+              <tr><td><span class="badge red">Cancelado</span></td><td id="port-cancelados">—</td><td id="port-cancelados-pct">—</td></tr>
+            </tbody>
+          </table>
+          <div style="position:relative; height:160px; margin-top:12px;"><canvas id="chartPort"></canvas></div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">Novas linhas (<span id="novas-total">—</span>)</div>
+          <table class="split-table">
+            <thead><tr><th>Status</th><th>Qtd</th><th>%</th></tr></thead>
+            <tbody>
+              <tr><td><span class="badge green">Ativo</span></td><td id="novas-ativos">—</td><td id="novas-ativos-pct">—</td></tr>
+              <tr><td><span class="badge red">Cancelado</span></td><td id="novas-cancelados">—</td><td id="novas-cancelados-pct">—</td></tr>
+            </tbody>
+          </table>
+          <div style="position:relative; height:160px; margin-top:12px;"><canvas id="chartNova"></canvas></div>
+        </div>
+      </div>
+
+      <p class="section-title">Tipo de chip e Forma de pagamento</p>
+<div class="charts-row">
+  <div class="chart-box">
+    <div class="chart-title">eSIM vs Físico (<span id="chip-total">—</span>)</div>
+    <table class="split-table">
+      <thead><tr><th>Tipo</th><th>Qtd</th><th>%</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge blue">eSIM</span></td><td id="chip-esim">—</td><td id="chip-esim-pct">—</td></tr>
+        <tr><td><span class="badge amber">Físico</span></td><td id="chip-fisico">—</td><td id="chip-fisico-pct">—</td></tr>
+      </tbody>
+    </table>
+    <div style="position:relative; height:160px; margin-top:12px;"><canvas id="chartChip"></canvas></div>
+  </div>
+  <div class="chart-box">
+    <div class="chart-title">Forma de pagamento (<span id="pgto-total">—</span>)</div>
+    <table class="split-table">
+      <thead><tr><th>Forma</th><th>Qtd</th><th>%</th></tr></thead>
+      <tbody id="pgto-tabela"></tbody>
+    </table>
+    <div style="position:relative; height:160px; margin-top:12px;"><canvas id="chartPgto"></canvas></div>
+  </div>
+</div>
+
+<p class="section-title">Recorrência e Status de portabilidade</p>
+<div class="charts-row" style="margin-top:16px;">
+  <div class="chart-box">
+    <div class="chart-title">Recorrência (<span id="rec-total">—</span>)</div>
+    <table class="split-table">
+      <thead><tr><th>Tipo</th><th>Qtd</th><th>%</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge green">Com recorrência</span></td><td id="rec-com">—</td><td id="rec-com-pct">—</td></tr>
+        <tr><td><span class="badge red">Sem recorrência</span></td><td id="rec-sem">—</td><td id="rec-sem-pct">—</td></tr>
+      </tbody>
+    </table>
+    <div style="position:relative; height:160px; margin-top:12px;"><canvas id="chartRecorrencia"></canvas></div>
+  </div>
+  <div class="chart-box">
+<div class="chart-title">Status de portabilidades (<span id="port-status-total">—</span>)</div>
+<table class="split-table">
+  <thead><tr><th>Status</th><th>Qtd</th><th>%</th></tr></thead>
+  <tbody>
+<tr><td><span class="badge green">Aprovadas</span></td><td id="port-aprov">—</td><td id="port-aprov-pct">—</td></tr>
+<tr><td><span class="badge red">Negadas</span></td><td id="port-neg">—</td><td id="port-neg-pct">—</td></tr>
+<tr><td><span class="badge amber">Em andamento</span></td><td id="port-andamento">—</td><td id="port-andamento-pct">—</td></tr>
+  </tbody>
+</table>
+<div style="position:relative; height:160px; margin-top:12px;"><canvas id="chartPortGeral"></canvas></div>
+  </div>
+</div>
+
+   <p class="section-title">Logística</p>
+      <div class="charts-row">
+        <div class="chart-box">
+          <div class="chart-title">Status de logística (<span id="log-total">—</span>)</div>
+          <table class="split-table">
+            <thead><tr><th>Status</th><th>Qtd</th><th>%</th></tr></thead>
+            <tbody>
+              <tr><td><span class="badge green">Ativa</span></td><td id="log-ativa">—</td><td id="log-ativa-pct">—</td></tr>
+              <tr><td><span class="badge amber">Não ativada</span></td><td id="log-nao-ativada">—</td><td id="log-nao-pct">—</td></tr>
+              <tr><td><span class="badge red">Cancelada</span></td><td id="log-cancelada">—</td><td id="log-cancel-pct">—</td></tr>
+            </tbody>
+          </table>
+          <div style="position:relative; height:160px; margin-top:12px;"><canvas id="chartLogistica"></canvas></div>
+        </div>
+      </div>
+
+   <p class="section-title">Top operadoras doadoras e Planos mais usados</p>
+      <div class="charts-row">
+        <div class="chart-box">
+          <div class="chart-title">Top operadoras doadoras</div>
+          <div style="position:relative; height:220px;"><canvas id="chartOperadoras"></canvas></div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">Planos mais usados</div>
+          <div id="planosChart"></div>
+        </div>
+      </div>
+
+      <p class="section-title">Ativações e cancelamentos ao longo do tempo</p>
+      <div class="chart-box">
+        <div class="legend">
+          <span><span class="legend-dot" style="background:#10B981;"></span>Ativações <b id="legend-atv-total" style="color:#10B981;margin-left:4px;">—</b></span>
+          <span><span class="legend-dot" style="background:#EF4444;"></span>Cancelamentos <b id="legend-canc-total" style="color:#EF4444;margin-left:4px;">—</b></span>
+        </div>
+        <div style="position:relative; height:240px;"><canvas id="chartTimeline"></canvas></div>
+      </div>
+
+      <p class="section-title">Clientes por estado</p>
+      <div class="charts-row">
+        <div class="chart-box">
+          <div class="chart-title">Distribuição por estado</div>
+          <div id="mapaBrasil" style="width:100%; height:220px; overflow:hidden;"></div>
+          <div class="mapa-legenda">
+            <div class="mapa-legenda-barra"></div>
+            <div class="mapa-legenda-labels"><span>Menos</span><span>Mais</span></div>
+          </div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">Ranking por estado</div>
+          <div id="mapaTabela" class="mapa-tabela-wrap"></div>
+        </div>
+      </div>
+
+    </div><!-- /page-geral -->
+
+<!-- ══ PÁGINA: Dashboard de Clientes ══ -->
+    <div id="page-clientes" class="page" style="display:none;">
+      <div class="page-header">
+        <h1>Dashboard de Clientes</h1>
+        <button class="btn-reload-small" onclick="location.reload()">🔄 Nova planilha</button>
+      </div>
+
+      <!-- ── KPI ── -->
+      <p class="section-title">Visão geral</p>
+      <div class="cards">
+        <div class="card"><div class="label">Clientes únicos</div><div class="value" id="cli-total-docs">—</div></div>
+        <div class="card red"><div class="label">Números repetidos</div><div class="value" id="cli-tels-rep">—</div><div class="sub">números que aparecem em mais de uma linha</div></div>
+        <div class="card amber"><div class="label">Clientes com nº repetido</div><div class="value" id="cli-com-rep">—</div><div class="sub">clientes que têm esses números</div></div>
+        <div class="card red"><div class="label">Nº em múltiplos clientes</div><div class="value" id="cli-multi-clientes">—</div><div class="sub">mesmo número em CPFs diferentes</div></div>
+      </div>
+
+      <!-- ── Linhas ativadas e repetidas ── -->
+      <p class="section-title">Linhas ativadas e repetidas por cliente</p>
+      <div class="chart-box">
+        <div class="chart-title">Clientes com números repetidos</div>
+        <div class="cli-search-wrap">
+          <input type="text" id="cli-search-doc" class="cli-search" placeholder="🔍 Buscar por nome, documento ou ID licenciado..." />
+        </div>
+        <div class="cli-table-wrap">
+          <table class="split-table">
+            <thead><tr><th>Nome</th><th>Documento</th><th>ID Licenciado</th><th>Total ativações</th><th>Repetidas</th></tr></thead>
+            <tbody id="cli-tab-doc"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── Número em múltiplos clientes ── -->
+      <p class="section-title">Número de telefone em múltiplos clientes</p>
+      <div class="chart-box">
+        <div class="chart-title">Mesmo número como operadora doadora para clientes diferentes</div>
+        <div class="cli-search-wrap">
+          <input type="text" id="cli-search-multi" class="cli-search" placeholder="🔍 Buscar por número, ID licenciado ou documento..." />
+        </div>
+        <div class="cli-table-wrap">
+          <table class="split-table">
+            <thead><tr><th>Número</th><th>Total linhas</th><th>Clientes distintos</th><th>ID Licenciado</th><th>Documentos</th></tr></thead>
+            <tbody id="cli-tab-multi"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── Índice de cancelamento ── -->
+      <p class="section-title">Índice de cancelamento</p>
+      <div class="chart-box">
+        <div class="chart-title">Clientes com mais de 50% das linhas canceladas <span style="font-size:11px;color:var(--text-muted);font-weight:400;">(mín. 2 linhas)</span></div>
+        <div class="cli-search-wrap">
+          <input type="text" id="cli-search-cancel" class="cli-search" placeholder="🔍 Buscar por nome, documento ou ID licenciado..." />
+        </div>
+        <div class="cli-table-wrap">
+          <table class="split-table">
+            <thead><tr><th>Nome</th><th>Documento</th><th>ID Licenciado</th><th>Total linhas</th><th>Canceladas</th><th>% cancelado</th></tr></thead>
+            <tbody id="cli-tab-cancel"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── Clientes com mais de uma recarga ── -->
+      <p class="section-title">Clientes com mais de uma recarga</p>
+      <div class="chart-box">
+        <div class="chart-title">Clientes que realizaram mais de uma recarga</div>
+        <div class="cli-search-wrap">
+          <input type="text" id="cli-search-recarga" class="cli-search" placeholder="🔍 Buscar por nome, documento ou ID licenciado..." />
+        </div>
+        <div class="cli-table-wrap">
+          <table class="split-table">
+            <thead><tr><th>Nome</th><th>Documento</th><th>ID Licenciado</th><th>Total linhas</th><th>Recargas</th></tr></thead>
+            <tbody id="cli-tab-recarga"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── Status portabilidades ── -->
+      <p class="section-title">Status das portabilidades</p>
+      <div class="charts-row">
+        <div class="chart-box">
+          <div class="chart-title">Distribuição por status</div>
+          <div style="position:relative; height:180px; margin-bottom:12px;"><canvas id="chartPortStatus"></canvas></div>
+          <table class="split-table">
+            <thead><tr><th>Status</th><th>Qtd</th><th>%</th></tr></thead>
+            <tbody id="cli-tab-status"></tbody>
+          </table>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">Números repetidos na operadora doadora</div>
+          <div class="cli-search-wrap">
+            <input type="text" id="cli-search-tels" class="cli-search" placeholder="🔍 Buscar por número, ID licenciado ou cliente..." />
+          </div>
+          <div class="cli-table-wrap">
+            <table class="split-table">
+              <thead><tr><th>Número</th><th>Ocorrências</th><th>ID Licenciado</th><th>Clientes</th></tr></thead>
+              <tbody id="cli-tab-tels"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Detalhamento por operadora ── -->
+      <p class="section-title">Detalhamento por operadora doadora</p>
+      <div class="chart-box">
+        <div class="chart-title">Detalhamento por operadora</div>
+        <div class="cli-table-wrap">
+          <table class="split-table">
+            <thead><tr><th>Operadora</th><th>Total</th><th>Sucesso</th><th>Negada</th></tr></thead>
+            <tbody id="cli-tab-op"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /page-clientes -->
+
+    <!-- ══ PÁGINA: Dashboard de Campanhas ══ -->
+    <div id="page-campanhas" class="page" style="display:none;">
+      <div class="page-header">
+        <h1>Dashboard de Campanhas</h1>
+        <button class="btn-reload-small" onclick="location.reload()">🔄 Nova planilha</button>
+      </div>
+
+      <!-- ── Visão geral ── -->
+      <p class="section-title">Visão geral — Bonificações</p>
+      <div class="cards">
+        <div class="card blue">
+          <div class="label">Total bonificados</div>
+          <div class="value" id="camp-total-bonif">—</div>
+          <div class="sub">clientes com plano bonificado</div>
+        </div>
+        <div class="card green">
+          <div class="label">Recarregaram</div>
+          <div class="value" id="camp-com-recarga">—</div>
+          <div class="sub">continuaram pagando</div>
+        </div>
+        <div class="card red">
+          <div class="label">Não recarregaram</div>
+          <div class="value" id="camp-sem-recarga">—</div>
+          <div class="sub">não realizaram nenhuma recarga</div>
+        </div>
+        <div class="card amber">
+          <div class="label">Taxa de conversão</div>
+          <div class="value" id="camp-pct-conversao">—</div>
+          <div class="sub">bonificados que continuaram</div>
+        </div>
+      </div>
+
+      <!-- ── Resultado financeiro ── -->
+      <p class="section-title">Resultado financeiro <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-soft);">(valor unitário: <span id="camp-valor-bonif">—</span>)</span></p>
+      <div class="cards">
+        <div class="card green">
+          <div class="label">💰 Ganho estimado</div>
+          <div class="value" id="camp-ganho">—</div>
+          <div class="sub">clientes que recarregaram × valor</div>
+        </div>
+        <div class="card red">
+          <div class="label">📉 Perda estimada</div>
+          <div class="value" id="camp-perda">—</div>
+          <div class="sub">clientes que não recarregaram × valor</div>
+        </div>
+        <div class="card">
+          <div class="label">⚖️ Resultado líquido</div>
+          <div class="value" id="camp-liquido">—</div>
+          <div class="sub">ganho − perda</div>
+        </div>
+      </div>
+
+      <!-- ── Gráfico e tabela ── -->
+      <p class="section-title">Distribuição de bonificados</p>
+      <div class="charts-row">
+        <div class="chart-box">
+          <div class="chart-title">Recarregaram vs Não recarregaram</div>
+          <div class="legend" style="margin-bottom:12px;">
+            <span><span class="legend-dot" style="background:#10B981;"></span>Recarregaram</span>
+            <span><span class="legend-dot" style="background:#EF4444;"></span>Não recarregaram</span>
+          </div>
+          <div style="position:relative; height:220px;"><canvas id="chartCampanha"></canvas></div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">Resumo financeiro</div>
+          <table class="split-table">
+            <thead><tr><th>Métrica</th><th>Clientes</th><th>Valor (R$54,90)</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10B981;margin-right:8px;"></span>Recarregaram</td>
+                <td id="camp-tab-com">—</td>
+                <td id="camp-tab-ganho" style="color:#10B981;font-weight:600;">—</td>
+              </tr>
+              <tr>
+                <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#EF4444;margin-right:8px;"></span>Não recarregaram</td>
+                <td id="camp-tab-sem">—</td>
+                <td id="camp-tab-perda" style="color:#EF4444;font-weight:600;">—</td>
+              </tr>
+              <tr style="font-weight:600;">
+                <td>Total bonificados</td>
+                <td id="camp-tab-total">—</td>
+                <td id="camp-tab-liquido">—</td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="margin-top:16px;padding:12px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--text-muted);line-height:1.6;">
+            <b style="color:var(--text-soft);">Como é calculado:</b><br>
+            Cada cliente bonificado recebe um plano no valor de R$54,90.<br>
+            Se recarregar = esse valor é recuperado (ganho).<br>
+            Se não recarregar = esse valor é perdido (perda).
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /page-campanhas -->
+
+  </main>
+
+  <!-- ── Modal Cidades por Estado ── -->
+  <div id="modalCidades" style="display:none;position:fixed;inset:0;z-index:500;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);opacity:0;transition:opacity .2s ease;" onclick="if(event.target===this)fecharModalCidades()">
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;width:min(520px,94vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 24px 60px #0009;transform:translateY(16px);transition:transform .2s ease;" id="modalCidadesInner">
+      <!-- header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap;" id="modalCidadesHeader"></div>
+      <!-- busca -->
+      <div style="padding:0.75rem 1.25rem 0;">
+        <input id="modalCidadesBusca" type="text" placeholder="🔍 Buscar cidade..." oninput="filtrarModalCidades(this.value)"
+          style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:13px;color:var(--text);outline:none;transition:border-color .2s;"
+          onfocus="this.style.borderColor='#10B981'" onblur="this.style.borderColor='var(--border)'"/>
+      </div>
+      <!-- body -->
+      <div id="modalCidadesBody" style="padding:1rem 1.25rem;overflow-y:auto;flex:1;"></div>
+      <!-- footer -->
+      <div style="padding:0.75rem 1.25rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;">
+        <button onclick="fecharModalCidades()" style="background:var(--bg-card2);color:var(--text-soft);border:1px solid var(--border);border-radius:8px;padding:6px 18px;font-size:13px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor='#10B981';this.style.color='#10B981'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-soft)'">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="dash-core.js"></script>
+<script src="dash-geral.js"></script>
+<script src="dash-clientes.js"></script>
+<script src="dash-campanhas.js"></script>
+</body>
+</html>
