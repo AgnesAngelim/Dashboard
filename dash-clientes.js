@@ -37,7 +37,7 @@ tabDoc.innerHTML = c.docList
     </tr>`).join("");
 
   // Tabela: índice de cancelamento com ID licenciado
-  const tabCancel = document.getElementById("cli-tab-cancel");ZXC
+  const tabCancel = document.getElementById("cli-tab-cancel");
   if (tabCancel) tabCancel.innerHTML = c.altoCancelamento.slice(0, 50).map(x => `
     <tr>
       <td>${x.nome}</td>
