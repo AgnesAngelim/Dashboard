@@ -314,7 +314,7 @@ function calcularDados(relatorio, backoffice) {
     }
   });
 
-  const ativacoesPorDoc = {}, numTelCount = {}, telDocMap = {}, dadosPorDoc = {}, statusPortMap = {}, operadoraStats = {};
+  const ativacoesPorDoc = {}, numTelCount = {}, telDocMap = {}, telIdLicMap = {}, dadosPorDoc = {}, statusPortMap = {}, operadoraStats = {};
   const relatorioClientes = backoffice && backoffice.size > 0
     ? relatorio.filter(r => {
         const chip = String(r["Chip"] || r["Numero"] || "").trim().split(".")[0];
@@ -323,12 +323,13 @@ function calcularDados(relatorio, backoffice) {
     : relatorio;
 
   relatorioClientes.forEach(r => {
-    const doc       = String(r["CPF"] || r["Clientes"] || "—").trim();
-    const nome      = String(r["Clientes"] || "—");
-    const tel       = String(r["Numero De Origem"] || r["Numero de origem"] || "").trim();
-    const cancelada = isCancelado(r);
-    const dataAtiv  = parseDateBR(r["Data de ativação"]);
-    if (!ativacoesPorDoc[doc]) ativacoesPorDoc[doc] = { doc, nome, total: 0 };
+    const doc           = String(r["CPF"] || r["Clientes"] || "—").trim();
+    const nome          = String(r["Clientes"] || "—");
+    const tel           = String(r["Numero De Origem"] || r["Numero de origem"] || "").trim();
+    const idLicenciado  = String(r["ID licenciado"] || r["ID Licenciado"] || r["Id Licenciado"] || "").trim();
+    const cancelada     = isCancelado(r);
+    const dataAtiv      = parseDateBR(r["Data de ativação"]);
+    if (!ativacoesPorDoc[doc]) ativacoesPorDoc[doc] = { doc, nome, idLicenciado, total: 0 };
     ativacoesPorDoc[doc].total++;
     if (!dadosPorDoc[doc]) dadosPorDoc[doc] = { datas: [], canceladas: 0 };
     if (dataAtiv) dadosPorDoc[doc].datas.push(dataAtiv);
@@ -337,6 +338,8 @@ function calcularDados(relatorio, backoffice) {
       numTelCount[tel] = (numTelCount[tel] || 0) + 1;
       if (!telDocMap[tel]) telDocMap[tel] = new Set();
       telDocMap[tel].add(doc);
+      if (!telIdLicMap[tel]) telIdLicMap[tel] = new Set();
+      if (idLicenciado) telIdLicMap[tel].add(idLicenciado);
     }
     const raw = r["Portabilidade"];
     if (raw) {
@@ -362,27 +365,35 @@ function calcularDados(relatorio, backoffice) {
     if (telDocMap[tel]) telDocMap[tel].forEach(doc => { repetidasPorDoc[doc] = (repetidasPorDoc[doc] || 0) + numTelCount[tel]; });
   });
   const docList = Object.values(ativacoesPorDoc).map(d => ({ ...d, repetidas: repetidasPorDoc[d.doc] || 0 })).sort((a, b) => b.total - a.total);
-  const telsDetalhes = Object.entries(numTelCount).filter(([, c]) => c > 1).sort((a, b) => b[1] - a[1]).slice(0, 50).map(([tel, count]) => ({ tel, count, docs: [...(telDocMap[tel] || [])] }));
-
+const telsDetalhes = Object.entries(numTelCount).filter(([, c]) => c > 1).sort((a, b) => b[1] - a[1]).slice(0, 50).map(([tel, count]) => ({ tel, count, docs: [...(telDocMap[tel] || [])], idsLicenciado: [...(telIdLicMap[tel] || [])] }));
   const alertaRapido = [];
   Object.entries(dadosPorDoc).forEach(([doc, info]) => {
     if (info.datas.length < 3) return;
     const sorted = info.datas.slice().sort((a, b) => a - b);
     for (let i = 0; i <= sorted.length - 3; i++) {
       const dias = Math.round((sorted[i + 2] - sorted[i]) / 86400000);
-      if (dias <= 30) { const cli = ativacoesPorDoc[doc]; alertaRapido.push({ doc, nome: cli?.nome || "—", total: cli?.total || 0, diasEntre3: dias }); break; }
+      if (dias <= 30) { const cli = ativacoesPorDoc[doc]; alertaRapido.push({ doc, nome: cli?.nome || "—", idLicenciado: cli?.idLicenciado || "—", total: cli?.total || 0, diasEntre3: dias }); break; }
     }
   });
   alertaRapido.sort((a, b) => a.diasEntre3 - b.diasEntre3);
 
-  const telPorMultiplosClientes = Object.entries(telDocMap).filter(([, docs]) => docs.size > 1).map(([tel, docs]) => ({ tel, totalLinhas: numTelCount[tel], totalClientes: docs.size, docs: [...docs] })).sort((a, b) => b.totalClientes - a.totalClientes);
+  const telPorMultiplosClientes = Object.entries(telDocMap)
+    .filter(([, docs]) => docs.size > 1)
+    .map(([tel, docs]) => ({
+      tel,
+      totalLinhas: numTelCount[tel],
+      totalClientes: docs.size,
+      docs: [...docs],
+      idsLicenciado: [...(telIdLicMap[tel] || [])],
+    }))
+    .sort((a, b) => b.totalClientes - a.totalClientes);
 
   const altoCancelamento = [];
   Object.entries(dadosPorDoc).forEach(([doc, info]) => {
     const cli = ativacoesPorDoc[doc];
     if (!cli || cli.total < 2) return;
     const ratio = info.canceladas / cli.total;
-    if (ratio > 0.5) altoCancelamento.push({ doc, nome: cli.nome, total: cli.total, canceladas: info.canceladas, pctCancel: (ratio * 100).toFixed(0) });
+    if (ratio > 0.5) altoCancelamento.push({ doc, nome: cli.nome, idLicenciado: cli.idLicenciado || "—", total: cli.total, canceladas: info.canceladas, pctCancel: (ratio * 100).toFixed(0) });
   });
   altoCancelamento.sort((a, b) => b.pctCancel - a.pctCancel);
 
