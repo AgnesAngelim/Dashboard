@@ -1,5 +1,3 @@
-// ── dash-geral.JS — Dashboard Geral ──────────────────────────────────────────
-
 let chartPort = null, chartNova = null, chartPortGeral = null, chartTimeline = null;
 let chartChip = null, chartPgto = null, chartRecorrencia = null, chartOperadoras = null, chartLogistica = null;
 
