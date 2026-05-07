@@ -1,5 +1,3 @@
-// ── dash-core.JS — utilitários, cálculo, upload, nav, tema, filtro global ──────
-
 const pct = (parte, total) => total ? ((parte / total) * 100).toFixed(1) + "%" : "0%";
 const pctGroup = (partes, total) => {
   if (!total) return partes.map(() => "0%");
