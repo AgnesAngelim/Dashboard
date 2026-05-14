@@ -314,7 +314,7 @@ function calcularDados(relatorio, backoffice) {
     }
   });
 
-  const ativacoesPorDoc = {}, numTelCount = {}, telDocMap = {}, telIdLicMap = {}, dadosPorDoc = {}, statusPortMap = {}, operadoraStats = {};
+  const ativacoesPorDoc = {}, numTelCount = {}, telDocMap = {}, telIdLicMap = {}, dadosPorDoc = {}, statusPortMap = {}, statusPortMapPorMes = {}, operadoraStats = {}, linhasPorDoc = {};
   const relatorioClientes = backoffice && backoffice.size > 0
     ? relatorio.filter(r => {
         const chip = String(r["Chip"] || r["Numero"] || "").trim().split(".")[0];
@@ -325,7 +325,9 @@ function calcularDados(relatorio, backoffice) {
   relatorioClientes.forEach(r => {
     const doc           = String(r["CPF"] || r["Clientes"] || "—").trim();
     const nome          = String(r["Clientes"] || "—");
-    const tel           = String(r["Numero De Origem"] || r["Numero de origem"] || "").trim();
+    const _origemVal    = r["Numero De Origem"] !== null && r["Numero De Origem"] !== undefined ? r["Numero De Origem"] : (r["Numero de origem"] !== null && r["Numero de origem"] !== undefined ? r["Numero de origem"] : "");
+    const _telRaw       = String(_origemVal).trim();
+    const tel           = (_telRaw === "" || _telRaw === "null" || _telRaw === "0" || _telRaw === "-") ? "" : _telRaw;
     const idLicenciado  = String(r["ID licenciado"] || r["ID Licenciado"] || r["Id Licenciado"] || "").trim();
     const cancelada     = isCancelado(r);
     const dataAtiv      = parseDateBR(r["Data de ativação"]);
@@ -336,6 +338,22 @@ function calcularDados(relatorio, backoffice) {
     if (cancelada) dadosPorDoc[doc].canceladas++;
     const recargas = parseInt(r["Qº de recargas"] || 0);
     if (!isNaN(recargas)) dadosPorDoc[doc].recargas = (dadosPorDoc[doc].recargas || 0) + recargas;
+    if (!linhasPorDoc[doc]) linhasPorDoc[doc] = [];
+    const _geradoRaw  = String(r["Numero gerado"] ?? "").replace(/[\u00A0\u200B\u00AD]/g, "").trim();
+    const _geradoValido = _geradoRaw.length > 0 && _geradoRaw !== "null" && _geradoRaw !== "0" && _geradoRaw !== "undefined" && _geradoRaw !== "-";
+    const _geradoFmt  = _geradoValido ? (() => {
+      const d = _geradoRaw.replace(/\D/g, "");
+      if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+      if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+      return _geradoRaw;
+    })() : "—";
+    linhasPorDoc[doc].push({
+      linha:    tel !== "" ? tel : _geradoFmt,
+      plano:    String(r["Plano"] || "—").trim(),
+      status:   String(r["Status"] || "—").trim(),
+      recargas: isNaN(recargas) ? 0 : recargas,
+      dataAtiv: dataAtiv ? `${String(dataAtiv.getUTCDate()).padStart(2,"0")}/${String(dataAtiv.getUTCMonth()+1).padStart(2,"0")}/${dataAtiv.getUTCFullYear()}` : "—",
+    });
     if (tel) {
       numTelCount[tel] = (numTelCount[tel] || 0) + 1;
       if (!telDocMap[tel]) telDocMap[tel] = new Set();
@@ -349,6 +367,9 @@ function calcularDados(relatorio, backoffice) {
       if (s.startsWith("Portabilidade negada")) s = "Portabilidade negada";
       if (s.toUpperCase() === "SUCESSO" || s.trimEnd() === "Sucesso") s = "Sucesso";
       statusPortMap[s] = (statusPortMap[s] || 0) + 1;
+      const mesPort = dataAtiv ? mesLabel(dataAtiv) : "sem-data";
+      if (!statusPortMapPorMes[mesPort]) statusPortMapPorMes[mesPort] = {};
+      statusPortMapPorMes[mesPort][s] = (statusPortMapPorMes[mesPort][s] || 0) + 1;
     }
     const op = r["Operadora"];
     if (op) {
@@ -405,7 +426,7 @@ function calcularDados(relatorio, backoffice) {
     .filter(([, info]) => (info.recargas || 0) > 1)
     .map(([doc, info]) => {
       const cli = ativacoesPorDoc[doc];
-      return { doc, nome: cli?.nome || "—", idLicenciado: cli?.idLicenciado || "—", total: cli?.total || 0, recargas: info.recargas };
+      return { doc, nome: cli?.nome || "—", idLicenciado: cli?.idLicenciado || "—", total: cli?.total || 0, recargas: info.recargas, linhas: linhasPorDoc[doc] || [] };
     })
     .sort((a, b) => b.recargas - a.recargas);
 
@@ -439,7 +460,7 @@ function calcularDados(relatorio, backoffice) {
     operadoras: contagemOp, estados: contagemEstados, cidadesPorEstado, bugs: { total: 0 },
     tempoMedioVida, kpi, planos,
     timeline: { todosMeses, labels: labelsTimeline, ativacoes: ativacoesArr, cancelamentos: cancelamentosArr, churn: churnArr, ativacoesPorMes, cancelamentosPorMes, ativacoesPorDia, cancelamentosPorDia },
-    clientes: { docList, statusPortMap, telsDetalhes, alertaRapido, telPorMultiplosClientes, altoCancelamento, operadoraList, comMaisDeUmaRecarga },
+    clientes: { docList, statusPortMap, statusPortMapPorMes, telsDetalhes, alertaRapido, telPorMultiplosClientes, altoCancelamento, operadoraList, comMaisDeUmaRecarga },
     campanhas,
   };
 }
