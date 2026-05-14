@@ -66,10 +66,11 @@ function renderizarClientes(d) {
   filtrarTabela("cli-search-cancel", "cli-tab-cancel");
 
   // Tabela: clientes com mais de uma recarga
+  window._dadosRecarga = c.comMaisDeUmaRecarga;
   const tabRecarga = document.getElementById("cli-tab-recarga");
-  if (tabRecarga) tabRecarga.innerHTML = c.comMaisDeUmaRecarga.map(x => `
+  if (tabRecarga) tabRecarga.innerHTML = c.comMaisDeUmaRecarga.map((x, i) => `
     <tr>
-      <td>${x.nome}</td>
+      <td><span style="cursor:pointer;font-weight:500;" onclick="abrirModalLinhas(${i})">${x.nome}</span></td>
       <td style="color:var(--text-muted);font-size:11px;">${x.doc}</td>
       <td style="color:var(--text-muted);font-size:11px;">${x.idLicenciado || "—"}</td>
       <td><b>${fmt(x.total)}</b></td>
@@ -77,16 +78,26 @@ function renderizarClientes(d) {
     </tr>`).join("");
   filtrarTabela("cli-search-recarga", "cli-tab-recarga");
 
-  // Gráfico status portabilidades
-  if (chartPortStatus) { chartPortStatus.destroy(); chartPortStatus = null; }
-  const statusEntries = Object.entries(c.statusPortMap).sort((a,b)=>b[1]-a[1]);
+  // Gráfico status portabilidades com filtro de mês
   const statusCores = {"Sucesso":"#10B981","Portabilidade negada":"#8B5CF6","Portabilidade em andamento":"#EC4899","Aguardando confirmação":"#06B6D4"};
-  const elStatusChart = document.getElementById("chartPortStatus");
-  if (elStatusChart) chartPortStatus = new Chart(elStatusChart,{type:"doughnut",data:{labels:statusEntries.map(([s])=>s),datasets:[{data:statusEntries.map(([,v])=>v),backgroundColor:statusEntries.map(([s])=>statusCores[s]||"#8B5CF6"),borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
 
-  const totalPort = Object.values(c.statusPortMap).reduce((a,b)=>a+b,0);
-  const tabStatus = document.getElementById("cli-tab-status");
-  if (tabStatus) tabStatus.innerHTML = statusEntries.map(([s,v])=>`<tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${statusCores[s]||"#8B5CF6"};margin-right:8px;"></span>${s}</td><td><b>${fmt(v)}</b></td><td style="color:var(--text-muted);font-size:11px;">${pct(v,totalPort)}</td></tr>`).join("");
+  const filtroPortMes = document.getElementById("filtro-port-mes");
+  if (filtroPortMes) {
+    const meses = Object.keys(c.statusPortMapPorMes || {}).filter(m => m !== "sem-data").sort();
+    filtroPortMes.innerHTML =
+      `<button class="filtro-btn active" data-mes="todos">Todos</button>` +
+      meses.map(m => `<button class="filtro-btn" data-mes="${m}">${formatarMesLabel(m)}</button>`).join("");
+    filtroPortMes.querySelectorAll(".filtro-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        filtroPortMes.querySelectorAll(".filtro-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        const mes = btn.dataset.mes;
+        const map = mes === "todos" ? c.statusPortMap : (c.statusPortMapPorMes[mes] || {});
+        atualizarGraficoPortStatus(map, statusCores);
+      });
+    });
+  }
+  atualizarGraficoPortStatus(c.statusPortMap, statusCores);
 
   // Tabela: números repetidos na operadora doadora com ID licenciado
   const tabTels = document.getElementById("cli-tab-tels");
@@ -110,3 +121,64 @@ function filtrarTabelaDoc(termo) {
     row.style.display = row.textContent.toLowerCase().includes(t) ? "" : "none";
   });
 }
+
+function atualizarGraficoPortStatus(map, cores) {
+  const entries = Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  if (chartPortStatus) { chartPortStatus.destroy(); chartPortStatus = null; }
+  const elStatusChart = document.getElementById("chartPortStatus");
+  if (elStatusChart) chartPortStatus = new Chart(elStatusChart, {
+    type: "doughnut",
+    data: {
+      labels: entries.map(([s]) => s),
+      datasets: [{ data: entries.map(([,v]) => v), backgroundColor: entries.map(([s]) => cores[s] || "#8B5CF6"), borderWidth: 0 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+  });
+  const total = Object.values(map).reduce((a,b) => a+b, 0);
+  const tabStatus = document.getElementById("cli-tab-status");
+  if (tabStatus) tabStatus.innerHTML = entries.map(([s,v]) =>
+    `<tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${cores[s]||"#8B5CF6"};margin-right:8px;"></span>${s}</td><td><b>${fmt(v)}</b></td><td style="color:var(--text-muted);font-size:11px;">${pct(v,total)}</td></tr>`
+  ).join("");
+}
+
+function abrirModalLinhas(idx) {
+  const x = (window._dadosRecarga || [])[idx];
+  if (!x) return;
+  const modal = document.getElementById("modalLinhasCli");
+  const header = document.getElementById("modalLinhasCliHeader");
+  const body   = document.getElementById("modalLinhasCliBody");
+  if (!modal || !header || !body) return;
+
+  header.innerHTML = `
+    <span>📋 ${x.nome}</span>
+    <span style="font-size:13px;font-weight:400;color:var(--text-muted);">${x.doc} · ${fmt(x.total)} linha${x.total>1?"s":""} · ${fmt(x.recargas)} recarga${x.recargas>1?"s":""}</span>`;
+
+  const linhas = (x.linhas || []).sort((a,b) => b.recargas - a.recargas);
+  body.innerHTML = linhas.length === 0
+    ? `<div style="text-align:center;padding:2rem;color:var(--text-muted);">Nenhuma linha encontrada.</div>`
+    : `<table class="split-table">
+        <thead><tr><th>Linha</th><th>Plano</th><th>Status</th><th>Ativação</th><th>Recargas</th></tr></thead>
+        <tbody>
+          ${linhas.map(l => `
+            <tr>
+              <td style="font-family:monospace;font-size:12px;">${l.linha}</td>
+              <td>${l.plano}</td>
+              <td><span style="color:${l.status.toLowerCase().includes("ativ") ? "#10B981" : l.status.toLowerCase().includes("cancel") ? "#EF4444" : "#94A3B8"};font-size:12px;">${l.status}</span></td>
+              <td style="color:var(--text-muted);font-size:12px;">${l.dataAtiv}</td>
+              <td><span style="color:#10B981;font-weight:600;">${fmt(l.recargas)}</span></td>
+            </tr>`).join("")}
+        </tbody>
+      </table>`;
+
+  modal.style.display = "flex";
+  requestAnimationFrame(() => modal.classList.add("modal-visible"));
+}
+
+function fecharModalLinhas() {
+  const modal = document.getElementById("modalLinhasCli");
+  if (!modal) return;
+  modal.classList.remove("modal-visible");
+  setTimeout(() => { modal.style.display = "none"; }, 200);
+}
+
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") fecharModalLinhas(); });
