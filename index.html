@@ -8,6 +8,7 @@
   <style>
     .modal-visible { opacity: 1 !important; }
     .modal-visible #modalCidadesInner { transform: translateY(0) !important; }
+    .modal-visible #modalLinhasCliInner { transform: translateY(0) !important; }
   </style>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐋</text></svg>">
 </head>
@@ -323,6 +324,7 @@
       <div class="charts-row">
         <div class="chart-box">
           <div class="chart-title">Distribuição por status</div>
+          <div id="filtro-port-mes" class="filtro-meses" style="margin-bottom:10px;"></div>
           <div style="position:relative; height:180px; margin-bottom:12px;"><canvas id="chartPortStatus"></canvas></div>
           <table class="split-table">
             <thead><tr><th>Status</th><th>Qtd</th><th>%</th></tr></thead>
@@ -471,6 +473,17 @@
       <!-- footer -->
       <div style="padding:0.75rem 1.25rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;">
         <button onclick="fecharModalCidades()" style="background:var(--bg-card2);color:var(--text-soft);border:1px solid var(--border);border-radius:8px;padding:6px 18px;font-size:13px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor='#10B981';this.style.color='#10B981'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-soft)'">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal Linhas do Cliente ── -->
+  <div id="modalLinhasCli" style="display:none;position:fixed;inset:0;z-index:500;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);opacity:0;transition:opacity .2s ease;" onclick="if(event.target===this)fecharModalLinhas()">
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;width:min(620px,94vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 24px 60px #0009;transform:translateY(16px);transition:transform .2s ease;" id="modalLinhasCliInner">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap;" id="modalLinhasCliHeader"></div>
+      <div id="modalLinhasCliBody" style="padding:1rem 1.25rem;overflow-y:auto;flex:1;"></div>
+      <div style="padding:0.75rem 1.25rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;">
+        <button onclick="fecharModalLinhas()" style="background:var(--bg-card2);color:var(--text-soft);border:1px solid var(--border);border-radius:8px;padding:6px 18px;font-size:13px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor='#10B981';this.style.color='#10B981'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-soft)'">Fechar</button>
       </div>
     </div>
   </div>
