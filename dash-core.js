@@ -327,7 +327,12 @@ function calcularDados(relatorio, backoffice) {
     const nome          = String(r["Clientes"] || "—");
     const _origemVal    = r["Numero De Origem"] !== null && r["Numero De Origem"] !== undefined ? r["Numero De Origem"] : (r["Numero de origem"] !== null && r["Numero de origem"] !== undefined ? r["Numero de origem"] : "");
     const _telRaw       = String(_origemVal).trim();
-    const tel           = (_telRaw === "" || _telRaw === "null" || _telRaw === "0" || _telRaw === "-") ? "" : _telRaw;
+    const _telOrigem    = (_telRaw === "" || _telRaw === "null" || _telRaw === "0" || _telRaw === "-") ? "" : _telRaw;
+    const _geradoRawPre = String(r["Numero Celular Gerado"] ?? r["Numero gerado"] ?? "").replace(/[\u00A0\u200B\u00AD]/g, "").trim();
+    const _geradoValidoPre = _geradoRawPre.length > 0 && _geradoRawPre !== "null" && _geradoRawPre !== "0" && _geradoRawPre !== "undefined" && _geradoRawPre !== "-";
+    const _geradoFmtPre = _geradoValidoPre ? (() => { const d = _geradoRawPre.replace(/\D/g,""); if(d.length===11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`; if(d.length===10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`; return _geradoRawPre; })() : "";
+    const tel           = _telOrigem !== "" ? _telOrigem : _geradoFmtPre;
+    const _usouGerado   = _telOrigem === "" && _geradoValidoPre;
     const idLicenciado  = String(r["ID licenciado"] || r["ID Licenciado"] || r["Id Licenciado"] || "").trim();
     const cancelada     = isCancelado(r);
     const dataAtiv      = parseDateBR(r["Data de ativação"]);
@@ -339,17 +344,10 @@ function calcularDados(relatorio, backoffice) {
     const recargas = parseInt(r["Qº de recargas"] || 0);
     if (!isNaN(recargas)) dadosPorDoc[doc].recargas = (dadosPorDoc[doc].recargas || 0) + recargas;
     if (!linhasPorDoc[doc]) linhasPorDoc[doc] = [];
-    const _geradoRaw  = String(r["Numero gerado"] ?? "").replace(/[\u00A0\u200B\u00AD]/g, "").trim();
-    const _geradoValido = _geradoRaw.length > 0 && _geradoRaw !== "null" && _geradoRaw !== "0" && _geradoRaw !== "undefined" && _geradoRaw !== "-";
-    const _geradoFmt  = _geradoValido ? (() => {
-      const d = _geradoRaw.replace(/\D/g, "");
-      if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
-      if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
-      return _geradoRaw;
-    })() : "—";
     linhasPorDoc[doc].push({
-      linha:    tel !== "" ? tel : _geradoFmt,
-      plano:    String(r["Plano"] || "—").trim(),
+      linha:        tel !== "" ? tel : "—",
+      origemGerado: _usouGerado,
+      plano:        String(r["Plano"] || "—").trim(),
       status:   String(r["Status"] || "—").trim(),
       recargas: isNaN(recargas) ? 0 : recargas,
       dataAtiv: dataAtiv ? `${String(dataAtiv.getUTCDate()).padStart(2,"0")}/${String(dataAtiv.getUTCMonth()+1).padStart(2,"0")}/${dataAtiv.getUTCFullYear()}` : "—",
