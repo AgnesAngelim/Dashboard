@@ -13,7 +13,7 @@ function escaparParaScript(str) {
 }
 
 async function exportarHTML() {
-  if (!dadosGlobais) {
+  if (!dadosGlobais || !arquivoPrincipal) {
     alert("Carregue uma planilha antes de exportar o HTML.");
     return;
   }
@@ -61,6 +61,20 @@ async function exportarHTML() {
 
     const paginaAtiva = document.querySelector(".nav-item.active")?.dataset.page || "geral";
     const temaAtual   = document.body.dataset.tema || "dark";
+
+    // Captura o filtro global (mês / período personalizado / "todos") que está ativo agora
+    const filtroBtnAtivo = document.querySelector("#filtroGlobal .filtro-btn.active");
+    let filtroModo = "todos", filtroInicio = null, filtroFim = null;
+    if (filtroBtnAtivo) {
+      if (filtroBtnAtivo.id === "btnAplicarPeriodo") {
+        filtroInicio = document.getElementById("filtroDataInicio")?.value || null;
+        filtroFim    = document.getElementById("filtroDataFim")?.value || null;
+        filtroModo   = (filtroInicio && filtroFim) ? "periodo" : "todos";
+      } else if (filtroBtnAtivo.dataset.mes) {
+        filtroModo = filtroBtnAtivo.dataset.mes;
+      }
+    }
+
     const agora = new Date();
     const dataStr = `${String(agora.getDate()).padStart(2,"0")}/${String(agora.getMonth()+1).padStart(2,"0")}/${agora.getFullYear()} ${String(agora.getHours()).padStart(2,"0")}:${String(agora.getMinutes()).padStart(2,"0")}`;
 
@@ -86,10 +100,12 @@ async function exportarHTML() {
     htmlOut = htmlOut.replace(/<script[^>]*src=["']dash-geral\.js["'][^>]*><\/script>/, `<script>\n${geralSrc}\n</script>`);
     htmlOut = htmlOut.replace(/<script[^>]*src=["']dash-clientes\.js["'][^>]*><\/script>/, `<script>\n${clientesSrc}\n</script>`);
 
-    // 5) Script de inicialização — injeta os dados já calculados e reconstrói a tela,
-    //    sem precisar da planilha original. Vai logo após o dash-documentacao.js.
-    const dadosJSON = escaparParaScript(JSON.stringify(dadosGlobais));
+    // 5) Script de inicialização — restaura os dados da planilha (para o Filtro Global
+    //    continuar funcionando) e reconstrói a tela exatamente como estava. Vai logo
+    //    após o dash-documentacao.js.
     const docSecoesJSON = escaparParaScript(JSON.stringify(docSecoes));
+    const arquivoPrincipalJSON  = escaparParaScript(JSON.stringify(arquivoPrincipal || []));
+    const arquivoBackofficeJSON = escaparParaScript(JSON.stringify(arquivoBackoffice ? [...arquivoBackoffice] : []));
     const scriptInit = `
   <script>
   (function() {
@@ -105,35 +121,54 @@ async function exportarHTML() {
     try { localStorage.setItem("tema", ${JSON.stringify(temaAtual)}); } catch (e) {}
     aplicarTema(${JSON.stringify(temaAtual)});
 
-    // Esconde elementos que só fazem sentido com a planilha bruta carregada
+    // Esconde elementos que só fazem sentido durante o upload (não durante a visualização)
     var uploadArea = document.getElementById("uploadArea");
     if (uploadArea) uploadArea.remove();
-    var btnFiltro = document.getElementById("btnFiltroGlobal");
-    if (btnFiltro && btnFiltro.parentElement) btnFiltro.parentElement.style.display = "none";
     document.querySelectorAll("button").forEach(function(b){
       if (b.textContent && b.textContent.indexOf("Nova planilha") !== -1) b.style.display = "none";
     });
     var btnExport = document.getElementById("btnExportarHTML");
     if (btnExport) btnExport.style.display = "none";
 
-    // Aviso de que este é um snapshot estático
+    // Aviso de que este é um snapshot exportado
     var main = document.querySelector(".main-content");
     if (main) {
       var aviso = document.createElement("div");
       aviso.style.cssText = "background:rgba(245,158,11,0.12);color:#F59E0B;border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:8px 14px;font-size:12px;margin-bottom:14px;";
-      aviso.textContent = "📄 Snapshot exportado em ${dataStr} — visualização estática, sem necessidade de planilhas.";
+      aviso.textContent = "📄 Snapshot exportado em ${dataStr} — os dados da planilha foram embutidos para o Filtro Global continuar funcionando.";
       main.insertBefore(aviso, main.firstChild);
     }
 
-    // Injeta os dados já calculados e renderiza o dashboard
-    dadosGlobais = ${dadosJSON};
+    // Restaura os dados brutos (para o Filtro Global recalcular por mês/período normalmente)
+    arquivoPrincipal  = ${arquivoPrincipalJSON};
+    arquivoBackoffice = new Set(${arquivoBackofficeJSON});
+    var dadosCompletos = calcularDados(arquivoPrincipal, arquivoBackoffice);
+    construirFiltroGlobal(dadosCompletos);
+
+    // Mostra a aba que estava ativa no momento da exportação
     var paginaInicial = ${JSON.stringify(paginaAtiva)};
     document.querySelectorAll(".page").forEach(function(p){ p.style.display = "none"; });
     var pageEl = document.getElementById("page-" + paginaInicial);
     if (pageEl) pageEl.style.display = "block";
     document.querySelectorAll(".nav-item").forEach(function(b){ b.classList.toggle("active", b.dataset.page === paginaInicial); });
-    renderDash(dadosGlobais);
-    setTimeout(function(){ renderizarMapa(dadosGlobais); }, 100);
+
+    // Reaplica o filtro (mês / período / todos) que estava ativo no momento da exportação
+    var filtroModo   = ${JSON.stringify(filtroModo)};
+    var filtroInicio = ${JSON.stringify(filtroInicio)};
+    var filtroFim    = ${JSON.stringify(filtroFim)};
+    if (filtroModo === "periodo" && filtroInicio && filtroFim) {
+      document.getElementById("filtroDataInicio").value = filtroInicio;
+      document.getElementById("filtroDataFim").value = filtroFim;
+      document.getElementById("btnAplicarPeriodo").click();
+    } else if (filtroModo && filtroModo !== "todos") {
+      var btnMes = document.querySelector('#filtroGlobal .filtro-btn[data-mes="' + filtroModo + '"]');
+      if (btnMes) btnMes.click();
+      else { dadosGlobais = dadosCompletos; renderDash(dadosGlobais); setTimeout(function(){ renderizarMapa(dadosGlobais); }, 100); }
+    } else {
+      dadosGlobais = dadosCompletos;
+      renderDash(dadosGlobais);
+      setTimeout(function(){ renderizarMapa(dadosGlobais); }, 100);
+    }
   })();
   </script>`;
     htmlOut = htmlOut.replace(/<script[^>]*src=["']dash-documentacao\.js["'][^>]*><\/script>/, `<script>\n${docSrc}\n</script>\n${scriptInit}`);
